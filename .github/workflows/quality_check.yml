@@ -1,0 +1,24 @@
+---
+name: Quality check
+on:
+  push:
+    branches: [main]
+  pull_request_target:
+  workflow_dispatch:
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+      - name: Spell Check
+        # https://github.com/crate-ci/typos
+        uses: crate-ci/typos@master
+      - name: Shell Check
+        # https://github.com/reviewdog/action-shellcheck
+        uses: reviewdog/action-shellcheck@v1
+        with:
+          reporter: github-check
+          pattern: gh-find-code
+          fail_on_error: true
+          github_token: ${{ secrets.github_token }}
