@@ -55,7 +55,7 @@ gh find-code 'language:js "new Proxy()"'
 - [Python](https://www.python.org) - used to parse and open custom URLs on different
   operating systems
 
-```zsh
+```sh
 # install requirements
 brew install bat fzf gh python
 
@@ -91,7 +91,7 @@ alias ghfc='gh find-code'
 alias ghfc='BAT_THEME="Dracula" EDITOR="vim" gh find-code'
 ```
 
-### Bat Customization
+### Bat
 - The color scheme of the preview is determined by the `BAT_THEME` environment variable.
   If not explicitly set by the user, the theme defaults to `Monokai Extended`.
 
@@ -103,7 +103,7 @@ bat --list-themes --color=never
 BAT_THEME="Dracula" gh find-code
 ```
 
-### Editor Customization
+### Editor
 - The extension uses the `EDITOR` environment variable to open files in your editor.
   Currently, only `VSCode` and `Vim` are supported. If the `EDITOR` variable isn't set,
   nothing will happen. You can specify your preferred editor when launching the extension.
@@ -114,7 +114,7 @@ BAT_THEME="Dracula" gh find-code
 EDITOR="code" gh find-code
 ```
 
-### Fuzzy Finder (fzf) Customization
+### Fuzzy Finder (fzf)
 - Scroll the preview in larger steps by adding this snippet to your shell setup.
 
 ```sh
@@ -130,7 +130,7 @@ export FZF_DEFAULT_OPTS="
 - NOTE: [How to use ALT commands in a terminal on
   macOS?](https://superuser.com/questions/496090/how-to-use-alt-commands-in-a-terminal-on-os-x)
 
-### General issues
+### Good to know
 - Fast movements between list items can cause the wrong file to be displayed in the
   preview.
 - Be careful which files you open in your editor to avoid triggering something unintended.
@@ -138,19 +138,18 @@ export FZF_DEFAULT_OPTS="
 ---
 
 ## 💪 Contributing
-Routine code checks are handled with the
-[pre-commit](https://github.com/pre-commit/pre-commit) hook, customizations are done in
-the [.pre-commit-config.yaml](.pre-commit-config.yaml).
+- The [pre-commit](https://github.com/pre-commit/pre-commit) tool is used to handle
+  routine code checks. To customize the tool, refer to the
+  [.pre-commit-config.yaml](.pre-commit-config.yaml) file.
 
-> *Pre-commit is a multi-language package manager for pre-commit hooks. You specify a list
+> Pre-commit is a multi-language package manager for pre-commit hooks. You specify a list
 > of hooks you want and **pre-commit manages the installation and execution** of any hook
 > written in any language before every commit. Source: [pre-commit
-> introduction](https://pre-commit.com/#introduction)*
+> introduction](https://pre-commit.com/#introduction)
 
-```zsh
-# install through homebrew or pip
+```sh
+# install
 brew pre-commit
-pip install pre-commit
 
 # install the git hook scripts
 pre-commit install --hook-type commit-msg --hook-type pre-commit
