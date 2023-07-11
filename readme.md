@@ -2,8 +2,12 @@
 
 # gh find-code
 
-This extension is a command-line tool that uses the GitHub REST API and 'fzf' to
+This extension is a command-line tool that uses the GitHub REST API and `fzf` to
 interactively search and preview code.
+
+<img
+src="https://github.com/LangLangBart/gh-find-code/assets/92653266/144c966d-a5ac-4715-a7b3-7e6684bcf3d0"
+width="800">
 
 </div>
 
@@ -16,7 +20,6 @@ gh find-code [Flags] [Search term]
 ```
 
 ```sh
-# Example:
 # matches code from @junegunn's 'fzf' repo
 gh find-code 'repo:junegunn/fzf FZF_PORT'
 # matches JavaScript files with "new Proxy()"
@@ -49,8 +52,8 @@ gh find-code 'language:js "new Proxy()"'
   interaction with listed data
 - [GitHub command line tool (gh)](https://github.com/cli/cli#installation) - get the data
   from Github
-- [Python](https://www.python.org) - used to parse and open custom URLs on
-  different operating systems
+- [Python](https://www.python.org) - used to parse and open custom URLs on different
+  operating systems
 
 ```zsh
 # install requirements
@@ -71,12 +74,11 @@ gh ext remove LangLangBart/gh-find-code
 ### Search syntax
 - GitHub REST API is used to search for code. The correct query syntax for searching code
   is detailed in the links below.
-  - [Searching Code](https://docs.github.com/en/search-github/searching-on-github/searching-code)
+  - [GitHub Docs - Searching Code](https://docs.github.com/en/search-github/searching-on-github/searching-code)
   - [GitHub REST API - search](https://docs.github.com/en/rest/search/search#search-code)
 
-<sub>⚠️ The search syntax differs between the WebUI and the REST API, with the latter
-not supporting regex.</sub>
-**
+<sub>⚠️ The search syntax differs between the WebUI and the REST API, with the latter not
+supporting regex.</sub>
 
 ### Alias
 - The name `gh find-code` was chosen for its descriptive nature. For frequent use,
@@ -90,8 +92,8 @@ alias ghfc='BAT_THEME="Dracula" EDITOR="vim" gh find-code'
 ```
 
 ### Bat Customization
-- The color scheme of the preview is determined by the `BAT_THEME` environment variable. If
-  not explicitly set by the user, the theme defaults to `Monokai Extended`.
+- The color scheme of the preview is determined by the `BAT_THEME` environment variable.
+  If not explicitly set by the user, the theme defaults to `Monokai Extended`.
 
 ```sh
 # To view all default themes
@@ -105,9 +107,7 @@ BAT_THEME="Dracula" gh find-code
 - The extension uses the `EDITOR` environment variable to open files in your editor.
   Currently, only `VSCode` and `Vim` are supported. If the `EDITOR` variable isn't set,
   nothing will happen. You can specify your preferred editor when launching the extension.
-
-<sub>⚠️ The code from these files is held temporarily and gets removed when this program
-ends.</sub>
+- The code from these files is held temporarily and gets removed when this program ends.
 
 ```sh
 # Set the editor to Visual Studio Code
@@ -124,26 +124,28 @@ export FZF_DEFAULT_OPTS="
 --bind 'ctrl-w:preview-half-page-up,ctrl-s:preview-half-page-down'"
 ```
 
-- See the man page (`man fzf`) for `AVAILABLE KEYS` or
+- See `man fzf` for `AVAILABLE KEYS` or
   [junegunn/fzf#environment-variables](https://github.com/junegunn/fzf#environment-variables)
   on GitHub for more details.
-- NOTE: [How to use ALT commands in a terminal on macOS?](https://superuser.com/questions/496090/how-to-use-alt-commands-in-a-terminal-on-os-x)
+- NOTE: [How to use ALT commands in a terminal on
+  macOS?](https://superuser.com/questions/496090/how-to-use-alt-commands-in-a-terminal-on-os-x)
 
-### Interaction
-- Fast movement between list items may cause the wrong file to be displayed in the
+### General issues
+- Fast movements between list items can cause the wrong file to be displayed in the
   preview.
+- Be careful which files you open in your editor to avoid triggering something unintended.
 
 ---
 
 ## 💪 Contributing
 Routine code checks are handled with the
-[pre-commit](https://github.com/pre-commit/pre-commit) hook, customizations are
-done in the [.pre-commit-config.yaml](.pre-commit-config.yaml).
+[pre-commit](https://github.com/pre-commit/pre-commit) hook, customizations are done in
+the [.pre-commit-config.yaml](.pre-commit-config.yaml).
 
-> *Pre-commit is a multi-language package manager for pre-commit hooks. You
-> specify a list of hooks you want and **pre-commit manages the installation and
-> execution** of any hook written in any language before every commit. Source:
-> [pre-commit introduction](https://pre-commit.com/#introduction)*
+> *Pre-commit is a multi-language package manager for pre-commit hooks. You specify a list
+> of hooks you want and **pre-commit manages the installation and execution** of any hook
+> written in any language before every commit. Source: [pre-commit
+> introduction](https://pre-commit.com/#introduction)*
 
 ```zsh
 # install through homebrew or pip
