@@ -1,0 +1,26 @@
+---
+default_stages: [commit]
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.16.0
+    hooks:
+      - id: typos
+        args: [--format, brief, --write-changes]
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.9.0.5
+    hooks:
+      - id: shellcheck
+  - repo: https://github.com/lyz-code/yamlfix
+    rev: 1.12.0
+    hooks:
+      - id: yamlfix
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: 3.5.2
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
