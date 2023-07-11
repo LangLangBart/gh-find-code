@@ -1,0 +1,375 @@
+#!/usr/bin/env bash
+set -o allexport -o errexit -o nounset -o pipefail
+# https://www.gnu.org/software/bash/manual/bash.html#The-Set-Builtin
+
+# ====================== TODO =======================
+
+# There is no regex support currently for the REST API, look out if there are
+# changes or maybe the GraphQL API gets the ability to search code. Currently
+# only ISSUE, REPOSITORY, USER and  DISCUSSION are supported.
+
+# Check supported search types in the GraphQL API: gh api graphql --raw-field
+# query=$'{ __type(name: "SearchType") { enumValues { name } }}' \
+# --jq '[.data.__type.enumValues[].name] | join(", ")'
+
+# TODO: add tests and fine-tune colors in bat/fzf
+
+# ====================== set variables =======================
+
+debug_mode=false
+fzf_prompt="❮❯ Code: "
+open_in_editor=false
+open_in_pager=false
+BAT_THEME=${BAT_THEME:-Monokai Extended}
+# for 'fzf' to work correctly on 'macOS (zsh)' it needs to be set to bash
+SHELL=bash
+# a cached version will be used and only then a new one will be pulled
+gh_default_cache_time="15m"
+gh_default_limit=30
+gh_user_limit=${gh_user_limit:-$gh_default_limit}
+gh_accept_json="Accept: application/vnd.github+json"
+gh_accept_raw="Accept: application/vnd.github.raw"
+gh_accept_text_match="Accept: application/vnd.github.text-match+json"
+gh_rest_api_version="X-GitHub-Api-Version:2022-11-28"
+# see https://github.com/junegunn/fzf/blob/master/CHANGELOG.md 'preview-border'
+# option came with that version
+min_fzf_version="0.41.0"
+# see https://github.com/cli/cli/issues/7674 wait for this to be fixed and bump
+# the version number
+min_gh_version="2.31.0"
+
+# define colors
+COLOR_RESET='\033[0m'
+RED_NORMAL='\033[0;31m'
+GREEN_NORMAL='\033[0;32m'
+YELLOW_NORMAL='\033[0;33m'
+WHITE_BOLD='\033[1;97m'
+DARK_GRAY='\033[0;90m'
+
+# create temp files
+store_file_contents=$(mktemp -t file_content) || die "Can't create temp file."
+store_gh_content_debug=$(mktemp -t gh_content_debug) || die "Can't create temp file."
+store_gh_search_debug=$(mktemp -t gh_search_debug) || die "Can't create temp file."
+store_fzf_port=$(mktemp -t fzf_port) || die "Can't create temp file."
+# Declare an array to store the file names
+declare -a temp_files=(
+	"$store_file_contents"
+	"$store_gh_content_debug"
+	"$store_gh_search_debug"
+	"$store_fzf_port"
+)
+
+# ===================== basic functions =====================
+
+trap cleanup EXIT SIGHUP SIGINT
+
+cleanup() {
+	$debug_mode && printf "%bDebug mode was ON, the following files weren't deleted.%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
+	for file in "${temp_files[@]}"; do
+		# Use the 'find' command with a wildcard to retrieve all matching files.
+		# Files that are opened with the editor are suffixed with the
+		# 'file_name' to trigger the syntax highlighting of the editor.
+		find "${file}"* 2>/dev/null | while read -r matching_file; do
+			if $debug_mode; then
+				printf "\ttemporary file: %s\n" "$matching_file"
+			else
+				rm -f "$matching_file"
+			fi
+		done
+	done
+}
+
+die() {
+	echo ERROR: "$*" >&2
+	exit 1
+}
+
+version_num() {
+	sed -E 's/^[^0-9]*//' <<<"$@" | awk -F '.' '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'
+}
+
+check_version() {
+	local tool=$1 min_version=$2
+	user_version="$($tool --version | sed q)"
+	if [ "$(version_num "$min_version")" -gt "$(version_num "$user_version")" ]; then
+		die "The minimum required '$tool' version is $min_version. Your '$tool' version is: $user_version."
+	fi
+}
+
+# IMPORTANT: Keep it synchronized with the README, but without the Examples.
+print_help_text() {
+	local help_text
+	help_text=$(
+		cat <<EOF
+GitHub code searching with 'fzf'
+
+${WHITE_BOLD}Usage${COLOR_RESET}
+  gh find-code [Flags]
+
+${WHITE_BOLD}Flags${COLOR_RESET}
+  ${GREEN_NORMAL}-d${COLOR_RESET}  debug mode, temporary files are not deleted on exit
+  ${GREEN_NORMAL}-l${COLOR_RESET}  limit the number of listed results (default ${gh_default_limit}, max 100)
+  ${GREEN_NORMAL}-h${COLOR_RESET}  help
+
+${WHITE_BOLD}Hotkeys${COLOR_RESET}
+  ${GREEN_NORMAL}?     ${COLOR_RESET}  help
+  ${GREEN_NORMAL};     ${COLOR_RESET}  quick jump
+  ${GREEN_NORMAL}ctrl-b${COLOR_RESET}  open the file in the browser
+  ${GREEN_NORMAL}ctrl-e${COLOR_RESET}  open the file content in an editor, works with VSCode/vim
+  ${GREEN_NORMAL}ctrl-o${COLOR_RESET}  open the search query in the web browser
+  ${GREEN_NORMAL}ctrl-u${COLOR_RESET}  clear the query
+  ${GREEN_NORMAL}enter ${COLOR_RESET}  open the file with the pager
+  ${GREEN_NORMAL}tab   ${COLOR_RESET}  toggle the file preview
+  ${GREEN_NORMAL}esc   ${COLOR_RESET}  quit
+
+${WHITE_BOLD}Example${COLOR_RESET}
+  ${DARK_GRAY}# matches code from @junegunn's 'fzf' repo ${COLOR_RESET}
+  gh find-code 'repo:junegunn/fzf FZF_PORT'
+  ${DARK_GRAY}# matches JavaScript files with "new Proxy()" ${COLOR_RESET}
+  gh find-code 'language:js "new Proxy()"'
+
+${DARK_GRAY}# The syntax for searching code is described in the link below. ${COLOR_RESET}
+${DARK_GRAY}# https://docs.github.com/en/search-github/searching-on-github/searching-code ${COLOR_RESET}
+EOF
+	)
+	echo -e "$help_text"
+}
+
+# ====================== parse command-line options =======================
+
+# Parse short options
+while getopts "dhl:" opt; do
+	case ${opt} in
+	d)
+		fzf_prompt="$(printf "%b❮ 𝙳𝚎𝚋𝚞𝚐 𝙼𝚘𝚍𝚎 ❯ Code: %b" "$YELLOW_NORMAL" "$COLOR_RESET")"
+		export GH_DEBUG="api"
+		debug_mode="true"
+		;;
+	l)
+		if ((OPTARG < 1 || OPTARG > 100)); then
+			die "Value for '-l' must be between 1 and 100"
+		fi
+		gh_user_limit="${OPTARG}"
+		;;
+	h)
+		print_help_text
+		exit 0
+		;;
+	*) die "Invalid Option: -$OPTARG" ;;
+	esac
+done
+shift "$((OPTIND - 1))"
+
+# ====================== check requirements =======================
+
+for tool in bat fzf gh python; do
+	if ! type -p $tool >/dev/null; then
+		die "'$tool' was not found."
+	fi
+done
+
+check_version fzf "$min_fzf_version"
+check_version gh "$min_gh_version"
+
+# ===================== helper functions ==========================
+
+sanitize_input() {
+	if [[ -n $2 ]]; then
+		# This replaces spaces with '+' and special characters with
+		# percent-encoded values
+		python -c "import urllib.parse; print(urllib.parse.quote_plus('''$1'''))"
+	else
+		# This replaces spaces with '%20' and special characters with
+		# percent-encoded values
+		python -c "import urllib.parse; print(urllib.parse.quote('''$1'''))"
+	fi
+}
+
+play_notification_sound() {
+	afplay /System/Library/Sounds/Basso.aiff 2>/dev/null || echo -e "\a"
+}
+
+view_contents() {
+	declare -a line_numbers bat_args editor_args
+	local file_name owner_repo file_path patterns
+	local file_extension tempfile_with_ext matched_line
+	local sanitized_patterns sanitized_owner_repo sanitized_file_path
+	IFS=$'\t' read -r file_name _ owner_repo file_path patterns < <(sed -E $'s/[[:space:]]{2,}/\t/g' <<<"$@")
+
+	# check if the file does have a file extension and assign it
+	[[ "$file_name" =~ \.[[:alnum:]]+$ ]] && file_extension="${file_name##*.}"
+
+	# strings containing operators like '*' or '+' need to be escaped, but keep
+	# the "|" character unescaped
+	sanitized_patterns=$(printf '%q\n' "$patterns" | sed 's/\\\|/|/g')
+
+	# these sanitizations are necessary because it is possible that file paths
+	# can contain special characters, e.g. hashtags (#)
+	sanitized_owner_repo=$(sanitize_input "$owner_repo")
+	sanitized_file_path=$(sanitize_input "$file_path")
+
+	gh api "repos/${sanitized_owner_repo}/contents/${sanitized_file_path}" \
+		--cache "$gh_default_cache_time" \
+		--header "$gh_accept_raw" \
+		--header "$gh_rest_api_version" >"$store_file_contents" \
+		2> >(tee "$store_gh_content_debug" >&2) ||
+		die "API failed for repos/${owner_repo}/contents/${file_path}"
+
+	# define general appearance for bat, 'BAT_THEME' is set at the top '--wrap
+	# never' seems to be needed without it the preview occasionally would move
+	# to the wrong line
+	bat_args=(
+		"--paging always"
+		"--terminal-width ${FZF_PREVIEW_COLUMNS:-$COLUMNS}"
+		"--wrap never"
+		"--style numbers,header-filename,grid"
+		"--color always"
+	)
+
+	[[ -n "$file_extension" ]] && if bat --language "$file_extension" <<<"test" >/dev/null 2>&1; then
+		bat_args+=("--language $file_extension")
+	fi
+
+	# NOTE: in 'bat', '--line-range' overwrites prior flags, thus makes it
+	# inadequate for our use case but '--highlight-line' can be used multiple
+	# times, would be handy if the preview would only show relevant code with a
+	# bit of context around each match
+	# https://github.com/sharkdp/bat/pull/162#pullrequestreview-125072252
+	[[ "$patterns" != "null" ]] && while IFS='' read -r matched_line; do
+		bat_args+=("--highlight-line $matched_line")
+		line_numbers+=("$matched_line")
+	done < <(grep --extended-regexp --line-number "$sanitized_patterns" "$store_file_contents" | cut -d: -f1)
+
+	# filename with line matches, replace single quotes with escaped back ticks
+	bat_args+=("--file-name '${file_name//"'"/\`} │ 🅻  ${line_numbers[*]:-<none>}'")
+
+	if [[ $open_in_editor = "true" && -n "$EDITOR" ]]; then
+		tempfile_with_ext="${store_file_contents}_${file_name}"
+		cp "$store_file_contents" "$tempfile_with_ext"
+		case "$EDITOR" in
+		codium | code) editor_args=("$EDITOR" --reuse-window --goto "$tempfile_with_ext:${line_numbers:-1}") ;;
+		vim) editor_args=("$EDITOR" "+${line_numbers:-1}" "$tempfile_with_ext") ;;
+		*)
+			# natively installed audio player for macOS, or fall back to the
+			# ASCII bell character
+			play_notification_sound
+			return 0
+			;;
+		esac
+		"${editor_args[@]}"
+		return 0
+	fi
+
+	if [[ $open_in_pager = "true" ]]; then
+		eval bat "${bat_args[*]}" "$store_file_contents"
+	fi
+
+	# sending the change to 'fzf' via curl, 'fzf' FTW
+	curl --silent \
+		--request POST "localhost:$(cat "$store_fzf_port")" \
+		--data "change-preview-window(+${line_numbers:-1}-1/3)+change-preview:bat ${bat_args[*]} '$store_file_contents'"
+}
+
+gh_query() {
+	local input="$*"
+	if [ -z "$input" ]; then
+		printf "%bfield_1_hidden  Please enter a search query.%b" "$DARK_GRAY" "$COLOR_RESET"
+		return 0
+	fi
+	if data=$(gh api search/code \
+		--method GET \
+		--cache "$gh_default_cache_time" \
+		--header "$gh_accept_json" \
+		--header "$gh_accept_text_match" \
+		--header "$gh_rest_api_version" \
+		--field "per_page=$gh_user_limit" \
+		--raw-field q="${input}" \
+		--jq \
+		'def colors:
+        {
+            "gray_normal":"\u001b[90m",
+            "cyan_normal": "\u001b[36m",
+            "cyan_bold": "\u001b[1;36m",
+            "magenta_normal": "\u001b[35m",
+			"yellow_normal": "\u001b[33m",
+            "reset": "\u001b[0m"
+        };
+        def colored(text; color):
+            colors[color] + text + colors.reset;
+		"field_1_hidden  " +
+			(colored("\(.items|length) of ∑ \(.total_count)"; "yellow_normal")) +
+			(colored(" | ? help · esc quit"; "gray_normal")),
+        (.items | to_entries[] | {
+            name: colored(.value.repository.name; "cyan_bold"),
+            owner: colored(.value.repository.owner.login; "cyan_normal"),
+			file_name: .value.name,
+			file_path: colored(.value.path; "magenta_normal"),
+			index: (.key + 1),
+			# create a unique list of patterns separated by a vertical line to
+			# use in extended grep
+			patterns: (if [.value.text_matches[] | .. | .text? | select(type=="string")] == [] then "null"
+				else [.value.text_matches[] | .. | .text? | select(type=="string")] | unique | join("|") end)
+			# ".file_name" is placed at 1st place to allow the "∑" results line
+			# to be left-aligned (stupid workaround)
+        } | [ .file_name, .index, "\(.owner)/\(.name)", .file_path, .patterns] | @tsv)' 2>"$store_gh_search_debug"); then
+		column -ts $'\t' <<<"$data"
+	else
+		printf "%bfield_1_hidden  Failed to get the search results, check the query syntax.%b" "$RED_NORMAL" "$COLOR_RESET"
+		return 0
+	fi
+}
+
+open_query_in_browser() {
+	# the search syntax between the WebUI and the REST API is a bit different,
+	# for example the 'filename' qualifier doesn't exist and thus the URL is
+	# correct but it is useless for such cases
+	local sanitized_query
+	sanitized_query=$(sanitize_input "$1" true)
+	if [ -n "$sanitized_query" ]; then
+		python -m webbrowser "https://github.com/search?q=${sanitized_query}&type=code"
+	else
+		play_notification_sound
+	fi
+}
+
+# ===================== lets begin ========================
+
+gh_query "$*" | fzf \
+	--ansi \
+	--bind $'start:execute-silent:echo $FZF_PORT > $store_fzf_port' \
+	--bind "change:first+reload-sync:sleep 0.5; gh_query {q}" \
+	--bind 'ctrl-b:execute-silent:gh browse --repo {3} {4}' \
+	--bind 'ctrl-e:execute:[[ -n {q} && -n {} ]] && open_in_editor=true view_contents {}' \
+	--bind 'ctrl-o:execute-silent:open_query_in_browser {q}' \
+	--bind 'ctrl-u:clear-query' \
+	--bind 'enter:execute:[[ -n {q} && -n {} ]] && open_in_pager=true view_contents {}' \
+	--bind "esc:become:" \
+	--bind "focus:change-preview:sleep 0.5; [[ -n {q} && -n {} ]] && view_contents {}" \
+	--bind "load:change-preview:[[ -n {q} && -n {} ]] && view_contents {}" \
+	--bind '?:change-preview(print_help_text)+change-preview-window:+1' \
+	--bind ';:jump' \
+	--bind 'tab:toggle-preview+change-preview:[[ -n {q} && -n {} ]] && view_contents {}' \
+	--border block \
+	--color 'bg+:233,bg:235,gutter:235,border:238,scrollbar:235' \
+	--color 'preview-bg:234,preview-border:236,preview-scrollbar:237' \
+	--color 'fg+:255,fg:regular:250,hl:40,hl+:40' \
+	--color 'pointer:9,spinner:92,marker:46' \
+	--color 'prompt:14,info:40,header:255:regular,label:bold' \
+	--delimiter '\s\s+' \
+	--disabled \
+	--ellipsis '' \
+	--height=100% \
+	--header-lines 1 \
+	--info hidden \
+	--jump-labels 'abcdefghijklmnopqrstuvwxyz' \
+	--layout reverse \
+	--listen \
+	--no-multi \
+	--pointer '▶' \
+	--preview "[[ -n {q} && -n {} ]] && view_contents {}" \
+	--preview-window 'border-block:~3:nohidden:right:nowrap:65%' \
+	--prompt "$fzf_prompt" \
+	--query "$*" \
+	--scrollbar '│▐' \
+	--separator '' \
+	--with-nth=2..4
