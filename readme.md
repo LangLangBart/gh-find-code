@@ -135,6 +135,10 @@ export FZF_DEFAULT_OPTS="
   preview.
 - Be careful which files you open in your editor to avoid triggering something unintended.
 
+### Pager
+- If the `PAGER` environment variable is set to `less`, when opening the destination file, it
+  will automatically scroll to the matching line found.
+
 ---
 
 ## 💪 Contributing
