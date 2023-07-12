@@ -96,6 +96,8 @@ check_version() {
 # IMPORTANT: Keep it in sync with the readme.md
 print_help_text() {
 	local help_text
+	# Note: the quotation mark in '@junegunn‘s' is the unicode char U+02bc, don't use the
+	# typical single quotation mark, as this would cause the script to fail in bash 3.2
 	help_text=$(
 		cat <<EOF
 GitHub code searching with 'fzf'
@@ -120,7 +122,7 @@ ${WHITE_BOLD}Hotkeys${COLOR_RESET}
   ${GREEN_NORMAL}esc   ${COLOR_RESET}  quit
 
 ${WHITE_BOLD}Example${COLOR_RESET}
-  ${DARK_GRAY}# matches code from @junegunn's 'fzf' repo ${COLOR_RESET}
+  ${DARK_GRAY}# matches code from @junegunnʼs 'fzf' repo ${COLOR_RESET}
   gh find-code 'repo:junegunn/fzf FZF_PORT'
   ${DARK_GRAY}# matches JavaScript files with "new Proxy()" ${COLOR_RESET}
   gh find-code 'language:js "new Proxy()"'

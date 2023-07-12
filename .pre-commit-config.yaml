@@ -1,6 +1,17 @@
 ---
 default_stages: [commit]
 repos:
+  - repo: local
+    hooks:
+      - id: bash-3
+        name: macOS default bash version 3.2
+        entry: |
+          bash -c 'set -x
+          err=$(/bin/bash ./gh-find-code -h 2>&1 >/dev/null)
+          [[ -n $err ]] && exit 1 || exit 0'
+        language: system
+        pass_filenames: false
+        files: gh-find-code
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
     hooks:
