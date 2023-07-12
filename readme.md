@@ -16,21 +16,27 @@ width="800">
 ## 👨‍💻 Usage
 
 ```sh
-gh find-code [Flags] [Search term]
+gh find-code [Flags] [Search query]
 ```
 
-```sh
-# matches code from @junegunn's 'fzf' repo
-gh find-code 'repo:junegunn/fzf FZF_PORT'
-# matches JavaScript files with "new Proxy()"
-gh find-code 'language:js "new Proxy()"'
-```
+- Use valid qualifiers like `repo`, `language`, `in`, ... to refine the results of your search.
+  - [GitHub Docs - Searching Code](https://docs.github.com/en/search-github/searching-on-github/searching-code)
 
-| Flags | Description                                              | Example                                      |
-| ----- | -------------------------------------------------------- | -------------------------------------------- |
-| `-d`  | debug mode, temporary files are not deleted on exit      | `gh find-code -d`                            |
-| `-l`  | limit the number of listed results (default 30, max 100) | `gh find-code -l 50 'filename:_fzf compdef'` |
-| `-h`  | help                                                     | `gh find-code -h`                            |
+| Search query examples          | Description                                                     |
+| ------------------------------ | --------------------------------------------------------------- |
+| `'repo:junegunn/fzf FZF_PORT'` | searches only in the `junegunn/fzf` repo for `FZF_PORT`         |
+| `'language:js "new Proxy()"'`  | search for the exact string `"new Proxy()"` in JavaScript files |
+| `'in:path zsh'`                | matches code where `zsh` appears in the file path               |
+
+
+<sub>⚠️ The search syntax differs between the WebUI and the REST API, with the latter not
+supporting regex.</sub>
+
+| Flags | Description                                              |
+| ----- | -------------------------------------------------------- |
+| `-d`  | debug mode, temporary files are not deleted on exit      |
+| `-l`  | limit the number of listed results (default 30, max 100) |
+| `-h`  | help                                                     |
 
 | Key Bindings fzf            | Description                                               |
 | --------------------------- | --------------------------------------------------------- |
@@ -70,15 +76,6 @@ gh ext remove LangLangBart/gh-find-code
 ---
 
 ## 💁 TIPS
-
-### Search syntax
-- GitHub REST API is used to search for code. The correct query syntax for searching code
-  is detailed in the links below.
-  - [GitHub Docs - Searching Code](https://docs.github.com/en/search-github/searching-on-github/searching-code)
-  - [GitHub REST API - search](https://docs.github.com/en/rest/search/search#search-code)
-
-<sub>⚠️ The search syntax differs between the WebUI and the REST API, with the latter not
-supporting regex.</sub>
 
 ### Alias
 - The name `gh find-code` was chosen for its descriptive nature. For frequent use,
@@ -125,8 +122,8 @@ export FZF_DEFAULT_OPTS="
 ```
 
 - See `man fzf` for `AVAILABLE KEYS` or
-  [junegunn/fzf#environment-variables](https://github.com/junegunn/fzf#environment-variables)
-  on GitHub for more details.
+  [junegunn/fzf](https://github.com/junegunn/fzf#environment-variables) for more
+  details.
 - NOTE: [How to use ALT commands in a terminal on
   macOS?](https://superuser.com/questions/496090/how-to-use-alt-commands-in-a-terminal-on-os-x)
 
