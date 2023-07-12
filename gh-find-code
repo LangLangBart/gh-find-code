@@ -96,14 +96,12 @@ check_version() {
 # IMPORTANT: Keep it in sync with the readme.md
 print_help_text() {
 	local help_text
-	# Note: the quotation mark in '@junegunn‘s' is the unicode char U+02bc, don't use the
-	# typical single quotation mark, as this would cause the script to fail in bash 3.2
 	help_text=$(
 		cat <<EOF
 GitHub code searching with 'fzf'
 
 ${WHITE_BOLD}Usage${COLOR_RESET}
-  gh find-code [Flags]
+  gh find-code [Flags] [Search query]
 
 ${WHITE_BOLD}Flags${COLOR_RESET}
   ${GREEN_NORMAL}-d${COLOR_RESET}  debug mode, temporary files are not deleted on exit
@@ -121,13 +119,15 @@ ${WHITE_BOLD}Hotkeys${COLOR_RESET}
   ${GREEN_NORMAL}tab   ${COLOR_RESET}  toggle the file preview
   ${GREEN_NORMAL}esc   ${COLOR_RESET}  quit
 
-${WHITE_BOLD}Example${COLOR_RESET}
-  ${DARK_GRAY}# matches code from @junegunnʼs 'fzf' repo ${COLOR_RESET}
+${WHITE_BOLD}Search query examples${COLOR_RESET}
+  ${DARK_GRAY}# searches only in the 'junegunn/fzf' repo for 'FZF_PORT'${COLOR_RESET}
   gh find-code 'repo:junegunn/fzf FZF_PORT'
-  ${DARK_GRAY}# matches JavaScript files with "new Proxy()" ${COLOR_RESET}
+  ${DARK_GRAY}# search for the exact string "new Proxy()" in JavaScript files${COLOR_RESET}
   gh find-code 'language:js "new Proxy()"'
+  ${DARK_GRAY}# matches code where 'zsh' appears in the file path${COLOR_RESET}
+  gh find-code 'in:path zsh'
 
-${DARK_GRAY}# The syntax for searching code is described in the link below. ${COLOR_RESET}
+${DARK_GRAY}# The syntax for searching code is described in the link below.${COLOR_RESET}
 ${DARK_GRAY}# https://docs.github.com/en/search-github/searching-on-github/searching-code ${COLOR_RESET}
 EOF
 	)
