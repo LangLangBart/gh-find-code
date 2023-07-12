@@ -45,15 +45,17 @@ WHITE_BOLD='\033[1;97m'
 DARK_GRAY='\033[0;90m'
 
 # create temp files
+store_bat_debug=$(mktemp -t bat_debug) || die "Can't create temp file."
 store_file_contents=$(mktemp -t file_content) || die "Can't create temp file."
+store_fzf_port=$(mktemp -t fzf_port) || die "Can't create temp file."
 store_gh_content_debug=$(mktemp -t gh_content_debug) || die "Can't create temp file."
 store_gh_search_debug=$(mktemp -t gh_search_debug) || die "Can't create temp file."
-store_fzf_port=$(mktemp -t fzf_port) || die "Can't create temp file."
 declare -a temp_files=(
+	"$store_bat_debug"
 	"$store_file_contents"
+	"$store_fzf_port"
 	"$store_gh_content_debug"
 	"$store_gh_search_debug"
-	"$store_fzf_port"
 )
 
 # ===================== basic functions =====================
@@ -217,7 +219,6 @@ view_contents() {
 	# '--wrap never' seems to be needed without it the fzf preview occasionally would move
 	# to the wrong line; '--theme' not needed because of 'BAT_THEME' set at the top
 	bat_args=(
-		"--paging always"
 		"--terminal-width ${FZF_PREVIEW_COLUMNS:-$COLUMNS}"
 		"--wrap never"
 		"--style numbers,header-filename,grid"
@@ -240,7 +241,7 @@ view_contents() {
 	# replace single quotes with escaped back ticks
 	bat_args+=("--file-name '${file_name//"'"/\`} │ 🅻  ${line_numbers[*]:-<none>}'")
 
-	if [[ $open_in_editor == "true" && -n $EDITOR ]]; then
+	if $open_in_editor && [[ -n $EDITOR ]]; then
 		tempfile_with_ext="${store_file_contents}_${file_name}"
 		cp "$store_file_contents" "$tempfile_with_ext"
 		case "$EDITOR" in
@@ -255,9 +256,23 @@ view_contents() {
 		return 0
 	fi
 
-	if [ $open_in_pager = "true" ]; then
+	if $debug_mode; then
+		{
+			echo -n "bat version: "
+			bat --version
+			echo -n "config file: "
+			bat --config-file
+			cat "$(bat --config-file)"
+			for value in "BAT_PAGER" "BAT_CONFIG_PATH" "BAT_STYLE" "BAT_THEME" "BAT_TABS" "PAGER"; do
+				echo "$value = '${!value}'"
+			done
+		} >"$store_bat_debug" 2>&1
+	fi
+
+	if $open_in_pager; then
+		bat_args+=("--paging always")
 		# the 'less' pager can move to a specific line
-		if [ "$PAGER" = "less" ]; then
+		if [[ $PAGER == "less" || $PAGER =~ /less$ ]]; then
 			# if the user asssigned the environment variable LESS with the
 			# '-F/--quit-if-one-screen' option, and set the '--pager' explicitly to 'less'
 			# the screen won't remain open for small text files that fit on the entire
