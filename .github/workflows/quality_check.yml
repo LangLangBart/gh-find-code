@@ -2,7 +2,6 @@
 name: Quality check
 on:
   push:
-    branches: [main]
   pull_request_target:
   workflow_dispatch:
 jobs:
@@ -14,9 +13,10 @@ jobs:
       - name: Spell Check
         # https://github.com/crate-ci/typos
         uses: crate-ci/typos@master
+        # TODO: add shfmt
       - name: Shell Check
         # https://github.com/reviewdog/action-shellcheck
-        uses: reviewdog/action-shellcheck@v1
+        uses: reviewdog/action-shellcheck@master
         with:
           reporter: github-check
           pattern: gh-find-code

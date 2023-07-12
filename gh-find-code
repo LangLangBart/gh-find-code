@@ -136,25 +136,24 @@ EOF
 
 # ====================== parse command-line options =======================
 
-# Parse short options
 while getopts "dhl:" opt; do
 	case ${opt} in
-	d)
-		fzf_prompt="$(printf "%b❮ 𝙳𝚎𝚋𝚞𝚐 𝙼𝚘𝚍𝚎 ❯ Code: %b" "$YELLOW_NORMAL" "$COLOR_RESET")"
-		export GH_DEBUG="api"
-		debug_mode="true"
-		;;
-	l)
-		if ((OPTARG < 1 || OPTARG > 100)); then
-			die "Value for '-l' must be between 1 and 100"
-		fi
-		gh_user_limit="${OPTARG}"
-		;;
-	h)
-		print_help_text
-		exit 0
-		;;
-	*) die "Invalid Option: -$OPTARG" ;;
+		d)
+			fzf_prompt="$(printf "%b❮ 𝙳𝚎𝚋𝚞𝚐 𝙼𝚘𝚍𝚎 ❯ Code: %b" "$YELLOW_NORMAL" "$COLOR_RESET")"
+			export GH_DEBUG="api"
+			debug_mode="true"
+			;;
+		l)
+			if ((OPTARG < 1 || OPTARG > 100)); then
+				die "Value for '-l' must be between 1 and 100"
+			fi
+			gh_user_limit="${OPTARG}"
+			;;
+		h)
+			print_help_text
+			exit 0
+			;;
+		*) die "Invalid Option: -$OPTARG" ;;
 	esac
 done
 shift "$((OPTIND - 1))"
@@ -195,7 +194,7 @@ view_contents() {
 	IFS=$'\t' read -r file_name _ owner_repo file_path patterns < <(sed -E $'s/[[:space:]]{2,}/\t/g' <<<"$@")
 
 	# check if the file does have a file extension and assign it
-	[[ "$file_name" =~ \.[[:alnum:]]+$ ]] && file_extension="${file_name##*.}"
+	[[ $file_name =~ \.[[:alnum:]]+$ ]] && file_extension="${file_name##*.}"
 
 	# strings containing operators like '*' or '+' need to be escaped, but keep the "|"
 	# character unescaped
@@ -224,7 +223,7 @@ view_contents() {
 		"--color always"
 	)
 
-	[[ -n "$file_extension" ]] && if bat --language "$file_extension" <<<"test" >/dev/null 2>&1; then
+	[[ -n $file_extension ]] && if bat --language "$file_extension" <<<"test" >/dev/null 2>&1; then
 		bat_args+=("--language $file_extension")
 	fi
 
@@ -232,7 +231,7 @@ view_contents() {
 	# our use case but '--highlight-line' can be used multiple times, would be handy if
 	# the preview would only show relevant code with a bit of context around each match
 	# https://github.com/sharkdp/bat/pull/162#pullrequestreview-125072252
-	[[ "$patterns" != "null" ]] && while IFS='' read -r matched_line; do
+	[[ $patterns != "null" ]] && while IFS='' read -r matched_line; do
 		bat_args+=("--highlight-line $matched_line")
 		line_numbers+=("$matched_line")
 	done < <(grep --extended-regexp --line-number "$sanitized_patterns" "$store_file_contents" | cut -d: -f1)
@@ -240,16 +239,16 @@ view_contents() {
 	# replace single quotes with escaped back ticks
 	bat_args+=("--file-name '${file_name//"'"/\`} │ 🅻  ${line_numbers[*]:-<none>}'")
 
-	if [[ $open_in_editor = "true" && -n "$EDITOR" ]]; then
+	if [[ $open_in_editor == "true" && -n $EDITOR ]]; then
 		tempfile_with_ext="${store_file_contents}_${file_name}"
 		cp "$store_file_contents" "$tempfile_with_ext"
 		case "$EDITOR" in
-		codium | code) editor_args=("$EDITOR" --reuse-window --goto "${tempfile_with_ext}:${line_numbers:-1}") ;;
-		vim) editor_args=("$EDITOR" "+${line_numbers:-1}" "$tempfile_with_ext") ;;
-		*)
-			play_notification_sound
-			return 0
-			;;
+			codium | code) editor_args=("$EDITOR" --reuse-window --goto "${tempfile_with_ext}:${line_numbers:-1}") ;;
+			vim) editor_args=("$EDITOR" "+${line_numbers:-1}" "$tempfile_with_ext") ;;
+			*)
+				play_notification_sound
+				return 0
+				;;
 		esac
 		"${editor_args[@]}"
 		return 0
@@ -263,7 +262,7 @@ view_contents() {
 			# the screen won't remain open for small text files that fit on the entire
 			# screen. The simplest solution is to unset the  'LESS' variable and define my
 			# own settings
-			[[ -n "$LESS" ]] && unset LESS
+			[[ -n $LESS ]] && unset LESS
 			# account for an offset of 3 lines for the bat header
 			less_move_to_line=$((${line_numbers:-1} + 3))
 			less_args=(
@@ -311,22 +310,22 @@ gh_query() {
 		--raw-field q="${input}" \
 		--jq \
 		'def colors:
-        {
-            "gray_normal":"\u001b[90m",
-            "cyan_normal": "\u001b[36m",
-            "cyan_bold": "\u001b[1;36m",
-            "magenta_normal": "\u001b[35m",
+		{
+			"gray_normal":"\u001b[90m",
+			"cyan_normal": "\u001b[36m",
+			"cyan_bold": "\u001b[1;36m",
+			"magenta_normal": "\u001b[35m",
 			"yellow_normal": "\u001b[33m",
-            "reset": "\u001b[0m"
-        };
-        def colored(text; color):
-            colors[color] + text + colors.reset;
+			"reset": "\u001b[0m"
+		};
+		def colored(text; color):
+			colors[color] + text + colors.reset;
 		"field_1_hidden  " +
 			(colored("\(.items|length) of ∑ \(.total_count)"; "yellow_normal")) +
 			(colored(" | ? help · esc quit"; "gray_normal")),
-        (.items | to_entries[] | {
-            name: colored(.value.repository.name; "cyan_bold"),
-            owner: colored(.value.repository.owner.login; "cyan_normal"),
+		(.items | to_entries[] | {
+			name: colored(.value.repository.name; "cyan_bold"),
+			owner: colored(.value.repository.owner.login; "cyan_normal"),
 			file_name: .value.name,
 			file_path: colored(.value.path; "magenta_normal"),
 			index: (.key + 1),
@@ -336,7 +335,7 @@ gh_query() {
 				else [.value.text_matches[] | .. | .text? | select(type=="string")] | unique | join("|") end)
 			# ".file_name" is placed at 1st place to allow the "∑" results line to be
 			# left-aligned (stupid workaround)
-        } | [ .file_name, .index, "\(.owner)/\(.name)", .file_path, .patterns] | @tsv)' 2>"$store_gh_search_debug"); then
+		} | [ .file_name, .index, "\(.owner)/\(.name)", .file_path, .patterns] | @tsv)' 2>"$store_gh_search_debug"); then
 		column -ts $'\t' <<<"$data"
 	else
 		printf "%bfield_1_hidden  Failed to get the search results, check the query syntax.%b" "$RED_NORMAL" "$COLOR_RESET"
