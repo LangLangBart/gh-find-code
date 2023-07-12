@@ -25,7 +25,15 @@ repos:
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.9.0.5
     hooks:
+      # doesn't require a local version of 'shellcheck'
       - id: shellcheck
+  - repo: https://github.com/jumanjihouse/pre-commit-hooks
+    rev: 3.0.0
+    hooks:
+      # requires a local version of 'shfmt'
+      - id: shfmt
+        name: shfmt
+        args: [--simplify, --indent 0, --case-indent, --write]
   - repo: https://github.com/lyz-code/yamlfix
     rev: 1.12.0
     hooks:
