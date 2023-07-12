@@ -26,19 +26,19 @@ gh find-code 'repo:junegunn/fzf FZF_PORT'
 gh find-code 'language:js "new Proxy()"'
 ```
 
-| Flags | Description                                              | Example                                     |
-| ----- | -------------------------------------------------------- | ------------------------------------------- |
-| `-d`  | debug mode, temporary files are not deleted on exit      | `gh notify -d`                              |
-| `-l`  | limit the number of listed results (default 30, max 100) | `gh find-code -l 50 'filename:_fzf compdef` |
-| `-h`  | help                                                     | `gh find-code -h`                           |
+| Flags | Description                                              | Example                                      |
+| ----- | -------------------------------------------------------- | -------------------------------------------- |
+| `-d`  | debug mode, temporary files are not deleted on exit      | `gh find-code -d`                            |
+| `-l`  | limit the number of listed results (default 30, max 100) | `gh find-code -l 50 'filename:_fzf compdef'` |
+| `-h`  | help                                                     | `gh find-code -h`                            |
 
 | Key Bindings fzf            | Description                                               |
 | --------------------------- | --------------------------------------------------------- |
 | <kbd>?</kbd>                | help                                                      |
 | <kbd>;</kbd>                | quick jump                                                |
 | <kbd>ctrl</kbd><kbd>b</kbd> | open the file in the browser                              |
-| <kbd>ctrl</kbd><kbd>e</kbd> | open the file content in an editor, works with VSCode/vim |
-| <kbd>ctrl</kbd><kbd>o</kbd> | open the search query in the web browser                  |
+| <kbd>ctrl</kbd><kbd>e</kbd> | open the file content in an editor, works with VSCode/Vim |
+| <kbd>ctrl</kbd><kbd>o</kbd> | open the search query in the browser                      |
 | <kbd>ctrl</kbd><kbd>u</kbd> | clear the query                                           |
 | <kbd>enter</kbd>            | open the file with the pager                              |
 | <kbd>tab</kbd>              | toggle the file preview                                   |

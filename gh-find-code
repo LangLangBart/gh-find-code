@@ -6,7 +6,7 @@ set -o allexport -o errexit -o nounset -o pipefail
 
 # There is no regex support currently for the REST API, look out if there are changes or
 # maybe the GraphQL API gets the ability to search code. Currently only ISSUE, REPOSITORY,
-# USER and  DISCUSSION are supported.
+# USER and DISCUSSION are supported.
 
 # Check supported search types in the GraphQL API: gh api graphql --raw-field query=$'{
 # __type(name: "SearchType") { enumValues { name } }}' \
@@ -32,10 +32,8 @@ gh_accept_raw="Accept: application/vnd.github.raw"
 gh_accept_text_match="Accept: application/vnd.github.text-match+json"
 gh_rest_api_version="X-GitHub-Api-Version:2022-11-28"
 # see https://github.com/junegunn/fzf/blob/master/CHANGELOG.md 'preview-border' option
-# came with that version
 min_fzf_version="0.41.0"
-# see https://github.com/cli/cli/issues/7674 wait for this to be fixed and bump the
-# version number
+# TODO: bump version when fixed https://github.com/cli/cli/issues/7674
 min_gh_version="2.31.0"
 
 # define colors
@@ -51,7 +49,6 @@ store_file_contents=$(mktemp -t file_content) || die "Can't create temp file."
 store_gh_content_debug=$(mktemp -t gh_content_debug) || die "Can't create temp file."
 store_gh_search_debug=$(mktemp -t gh_search_debug) || die "Can't create temp file."
 store_fzf_port=$(mktemp -t fzf_port) || die "Can't create temp file."
-# Declare an array to store the file names
 declare -a temp_files=(
 	"$store_file_contents"
 	"$store_gh_content_debug"
@@ -70,10 +67,10 @@ cleanup() {
 		# that are opened with the editor are suffixed with the 'file_name' to trigger the
 		# syntax highlighting of the editor.
 		find "${file}"* 2>/dev/null | while read -r matching_file; do
-			if $debug_mode; then
-				printf "\ttemporary file: %s\n" "$matching_file"
-			else
+			if ! $debug_mode || [[ ! -s $matching_file ]]; then
 				rm -f "$matching_file"
+			else
+				printf "\t%s\n" "$matching_file"
 			fi
 		done
 	done
@@ -96,7 +93,7 @@ check_version() {
 	fi
 }
 
-# IMPORTANT: Keep it synchronized with the README, but without the Examples.
+# IMPORTANT: Keep it in sync with the readme.md
 print_help_text() {
 	local help_text
 	help_text=$(
@@ -115,8 +112,8 @@ ${WHITE_BOLD}Hotkeys${COLOR_RESET}
   ${GREEN_NORMAL}?     ${COLOR_RESET}  help
   ${GREEN_NORMAL};     ${COLOR_RESET}  quick jump
   ${GREEN_NORMAL}ctrl-b${COLOR_RESET}  open the file in the browser
-  ${GREEN_NORMAL}ctrl-e${COLOR_RESET}  open the file content in an editor, works with VSCode/vim
-  ${GREEN_NORMAL}ctrl-o${COLOR_RESET}  open the search query in the web browser
+  ${GREEN_NORMAL}ctrl-e${COLOR_RESET}  open the file content in an editor, works with VSCode/Vim
+  ${GREEN_NORMAL}ctrl-o${COLOR_RESET}  open the search query in the browser
   ${GREEN_NORMAL}ctrl-u${COLOR_RESET}  clear the query
   ${GREEN_NORMAL}enter ${COLOR_RESET}  open the file with the pager
   ${GREEN_NORMAL}tab   ${COLOR_RESET}  toggle the file preview
@@ -216,7 +213,7 @@ view_contents() {
 		die "API failed for repos/${owner_repo}/contents/${file_path}"
 
 	# '--wrap never' seems to be needed without it the fzf preview occasionally would move
-	# to the wrong line, '--theme' not needed because of 'BAT_THEME' set at the top
+	# to the wrong line; '--theme' not needed because of 'BAT_THEME' set at the top
 	bat_args=(
 		"--paging always"
 		"--terminal-width ${FZF_PREVIEW_COLUMNS:-$COLUMNS}"
@@ -258,6 +255,7 @@ view_contents() {
 
 	if [[ $open_in_pager = "true" ]]; then
 		eval bat "${bat_args[*]}" "$store_file_contents"
+		return 0
 	fi
 
 	# sending the change to 'fzf' via curl; 'fzf' FTW
@@ -267,7 +265,7 @@ view_contents() {
 }
 
 gh_query() {
-	local input="$*"
+	local data input="$*"
 	if [ -z "$input" ]; then
 		printf "%bfield_1_hidden  Please enter a search query.%b" "$DARK_GRAY" "$COLOR_RESET"
 		return 0
