@@ -114,6 +114,7 @@ ${WHITE_BOLD}Hotkeys${COLOR_RESET}
   ${GREEN_NORMAL}ctrl-b${COLOR_RESET}  open the file in the browser
   ${GREEN_NORMAL}ctrl-e${COLOR_RESET}  open the file content in an editor, works with VSCode/Vim
   ${GREEN_NORMAL}ctrl-o${COLOR_RESET}  open the search query in the browser
+  ${GREEN_NORMAL}ctrl-r${COLOR_RESET}  reload
   ${GREEN_NORMAL}ctrl-u${COLOR_RESET}  clear the query
   ${GREEN_NORMAL}enter ${COLOR_RESET}  open the file with the pager
   ${GREEN_NORMAL}tab   ${COLOR_RESET}  toggle the file preview
@@ -362,6 +363,7 @@ gh_query "$*" | fzf \
 	--bind 'ctrl-b:execute-silent:gh browse --repo {3} {4}' \
 	--bind 'ctrl-e:execute:[[ -n {q} && -n {} ]] && open_in_editor=true view_contents {}' \
 	--bind 'ctrl-o:execute-silent:open_query_in_browser {q}' \
+	--bind 'ctrl-r:reload-sync:gh_query {q}' \
 	--bind 'ctrl-u:clear-query' \
 	--bind 'enter:execute:[[ -n {q} && -n {} ]] && open_in_pager=true view_contents {}' \
 	--bind "esc:become:" \
@@ -388,7 +390,7 @@ gh_query "$*" | fzf \
 	--no-multi \
 	--pointer '▶' \
 	--preview "[[ -n {q} && -n {} ]] && view_contents {}" \
-	--preview-window 'border-block:~3:nohidden:right:nowrap:65%' \
+	--preview-window 'border-block:~3:nohidden:right:nowrap:65%:<70(bottom:75%)' \
 	--prompt "$fzf_prompt" \
 	--query "$*" \
 	--scrollbar '│▐' \

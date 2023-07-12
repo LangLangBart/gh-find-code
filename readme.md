@@ -45,6 +45,7 @@ supporting regex.</sub>
 | <kbd>ctrl</kbd><kbd>b</kbd> | open the file in the browser                              |
 | <kbd>ctrl</kbd><kbd>e</kbd> | open the file content in an editor, works with VSCode/Vim |
 | <kbd>ctrl</kbd><kbd>o</kbd> | open the search query in the browser                      |
+| <kbd>ctrl</kbd><kbd>r</kbd> | reload                                                    |
 | <kbd>ctrl</kbd><kbd>u</kbd> | clear the query                                           |
 | <kbd>enter</kbd>            | open the file with the pager                              |
 | <kbd>tab</kbd>              | toggle the file preview                                   |
