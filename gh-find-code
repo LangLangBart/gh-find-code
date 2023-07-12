@@ -284,7 +284,7 @@ view_contents() {
 			less_args=(
 				"--LONG-PROMPT"         # Long prompts ("Line X of Y")
 				"--hilite-search"       # Highlight results when searching with slash key (/)
-				"--jump-target=.5"      # percent on the screen for the target line
+				"--jump-target=.3"      # percent on the screen for the target line
 				"--quiet"               # be more quiet
 				"--quit-on-intr"        # quit less immediately with ^C
 				"--RAW-CONTROL-CHARS"   # colors will not work without it
@@ -307,7 +307,7 @@ view_contents() {
 	# sending the change to 'fzf' via curl; 'fzf' FTW
 	curl --silent \
 		--request POST "localhost:$(cat "$store_fzf_port")" \
-		--data "change-preview-window(+${line_numbers:-1}-1/3)+change-preview:bat ${bat_args[*]} '$store_file_contents'"
+		--data "change-preview-window(+${line_numbers:-1}+3/3)+change-preview:bat ${bat_args[*]} '$store_file_contents'"
 }
 
 gh_query() {
