@@ -200,6 +200,8 @@ view_contents() {
 
 	# check if the file does have a file extension and assign it
 	[[ $file_name =~ \.[[:alnum:]]+$ ]] && file_extension="${file_name##*.}"
+	# covers cases where the filename starts with a dot, for example '.zshrc'
+	[[ $file_name == ".${file_extension}" ]] && file_extension="$file_name"
 
 	# strings containing operators like '*' or '+' need to be escaped, but keep the "|"
 	# character unescaped
