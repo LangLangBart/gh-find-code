@@ -38,18 +38,18 @@ supporting regex.</sub>
 | `-l`  | limit the number of listed results (default 30, max 100) |
 | `-h`  | help                                                     |
 
-| Key Bindings fzf            | Description                                               |
-| --------------------------- | --------------------------------------------------------- |
-| <kbd>?</kbd>                | help                                                      |
-| <kbd>;</kbd>                | quick jump                                                |
-| <kbd>ctrl</kbd><kbd>b</kbd> | open the file in the browser                              |
-| <kbd>ctrl</kbd><kbd>e</kbd> | open the file content in an editor, works with VSCode/Vim |
-| <kbd>ctrl</kbd><kbd>o</kbd> | open the search query in the browser                      |
-| <kbd>ctrl</kbd><kbd>r</kbd> | reload                                                    |
-| <kbd>ctrl</kbd><kbd>u</kbd> | clear the query                                           |
-| <kbd>enter</kbd>            | open the file with the pager                              |
-| <kbd>tab</kbd>              | toggle the file preview                                   |
-| <kbd>esc</kbd>              | quit                                                      |
+| Key Bindings fzf            | Description                            |
+| --------------------------- | -------------------------------------- |
+| <kbd>?</kbd>                | help                                   |
+| <kbd>;</kbd>                | quick jump                             |
+| <kbd>ctrl</kbd><kbd>b</kbd> | open the file in the browser           |
+| <kbd>ctrl</kbd><kbd>e</kbd> | open the file content in the '$EDITOR' |
+| <kbd>ctrl</kbd><kbd>o</kbd> | open the search query in the browser   |
+| <kbd>ctrl</kbd><kbd>r</kbd> | reload                                 |
+| <kbd>ctrl</kbd><kbd>u</kbd> | clear the query                        |
+| <kbd>enter</kbd>            | open the file in the '$PAGER'          |
+| <kbd>tab</kbd>              | toggle the file preview                |
+| <kbd>esc</kbd>              | quit                                   |
 
 ---
 
@@ -102,10 +102,10 @@ BAT_THEME="Dracula" gh find-code
 ```
 
 ### Editor
-- The extension uses the `EDITOR` environment variable to open files in your editor.
-  Currently, only `VSCode` and `Vim` are supported. If the `EDITOR` variable isn't set,
-  nothing will happen. You can specify your preferred editor when launching the extension.
-- The code from these files is held temporarily and gets removed when this program ends.
+- The extension uses the `EDITOR` environment variable to determine in which editor
+  the selected file should be opened, works with `nano`, `nvim/vi/vim` and
+  `VSCode/VSCodium`.
+- The code from opened files is held temporarily and gets removed when this program ends.
 
 ```sh
 # Set the editor to Visual Studio Code
@@ -128,15 +128,14 @@ export FZF_DEFAULT_OPTS="
 - NOTE: [How to use ALT commands in a terminal on
   macOS?](https://superuser.com/questions/496090/how-to-use-alt-commands-in-a-terminal-on-os-x)
 
-### Good to know
-- Fast movements between list items can cause the wrong file to be displayed in the
-  preview.
-- Be careful which files you open in your editor to avoid triggering something unintended.
-
 ### Pager
 - If the `PAGER` environment variable is set to `less`, when opening the destination file, it
   will automatically scroll to the matching line found.
 
+### Miscellaneous
+- Fast movements between list items can cause the wrong file to be displayed in the
+  preview.
+- Be careful which files you open in your editor to avoid triggering something unintended.
 ---
 
 ## 💪 Contributing
