@@ -14,6 +14,8 @@ set -o allexport -o errexit -o nounset -o pipefail
 
 # TODO: add tests
 
+# TODO: Fix display the wrong file in preview when switching between listed items quickly
+
 # ====================== set variables =======================
 
 debug_mode=false
@@ -114,11 +116,11 @@ ${WHITE_BOLD}Hotkeys${COLOR_RESET}
   ${GREEN_NORMAL}?     ${COLOR_RESET}  help
   ${GREEN_NORMAL};     ${COLOR_RESET}  quick jump
   ${GREEN_NORMAL}ctrl-b${COLOR_RESET}  open the file in the browser
-  ${GREEN_NORMAL}ctrl-e${COLOR_RESET}  open the file content in an editor, works with VSCode/Vim
+  ${GREEN_NORMAL}ctrl-e${COLOR_RESET}  open the file content in the '\$EDITOR'
   ${GREEN_NORMAL}ctrl-o${COLOR_RESET}  open the search query in the browser
   ${GREEN_NORMAL}ctrl-r${COLOR_RESET}  reload
   ${GREEN_NORMAL}ctrl-u${COLOR_RESET}  clear the query
-  ${GREEN_NORMAL}enter ${COLOR_RESET}  open the file with the pager
+  ${GREEN_NORMAL}enter ${COLOR_RESET}  open the file in the '\$PAGER'
   ${GREEN_NORMAL}tab   ${COLOR_RESET}  toggle the file preview
   ${GREEN_NORMAL}esc   ${COLOR_RESET}  quit
 
@@ -244,15 +246,19 @@ view_contents() {
 	if $open_in_editor && [[ -n $EDITOR ]]; then
 		tempfile_with_ext="${store_file_contents}_${file_name}"
 		cp "$store_file_contents" "$tempfile_with_ext"
-		case "$EDITOR" in
-			codium | code) editor_args=("$EDITOR" --reuse-window --goto "${tempfile_with_ext}:${line_numbers:-1}") ;;
-			vim) editor_args=("$EDITOR" "+${line_numbers:-1}" "$tempfile_with_ext") ;;
+		case $(basename "$EDITOR") in
+			code | codium)
+				editor_args=(--reuse-window --goto "${tempfile_with_ext}:${line_numbers:-1}")
+				;;
+			nano | nvim | vi | vim)
+				editor_args=("+${line_numbers:-1}" "$tempfile_with_ext")
+				;;
 			*)
 				play_notification_sound
 				return 0
 				;;
 		esac
-		"${editor_args[@]}"
+		$EDITOR "${editor_args[@]}"
 		return 0
 	fi
 
@@ -272,7 +278,7 @@ view_contents() {
 	if $open_in_pager; then
 		bat_args+=("--paging always")
 		# the 'less' pager can move to a specific line
-		if [[ $PAGER == "less" || $PAGER =~ /less$ ]]; then
+		if [[ $(basename "$PAGER") == "less" ]]; then
 			# if the user asssigned the environment variable LESS with the
 			# '-F/--quit-if-one-screen' option, and set the '--pager' explicitly to 'less'
 			# the screen won't remain open for small text files that fit on the entire
