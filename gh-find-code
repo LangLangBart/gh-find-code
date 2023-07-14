@@ -272,7 +272,7 @@ gh_query() {
 
 				echo "${line_numbers[*]}" >"${store_file_contents}_${index}_line_numbers"
 				printf "%s  %s  %-3d  %b%s%b/%b%s%b  %b%s%b\n" \
-					"${line_numbers:-1}" "$file_extension" "$index" "$CYAN_BOLD" "${owner_repo_name%/*}" "$COLOR_RESET" "$CYAN_NORMAL" "${owner_repo_name#*/}" "$COLOR_RESET" "$MAGENTA_NORMAL" "$file_path" "$COLOR_RESET"
+					"${line_numbers:-1}" "$file_extension" "$index" "$CYAN_NORMAL" "${owner_repo_name%/*}" "$COLOR_RESET" "$CYAN_BOLD" "${owner_repo_name#*/}" "$COLOR_RESET" "$MAGENTA_NORMAL" "$file_path" "$COLOR_RESET"
 			done
 
 			if $error_encountered; then
