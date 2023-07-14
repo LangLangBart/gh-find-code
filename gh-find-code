@@ -333,7 +333,7 @@ gh_query() {
 		--field "per_page=$gh_user_limit" \
 		--raw-field q="${input}" \
 		--jq \
-		'def colors:
+		$'def colors:
 		{
 			"gray_normal":"\u001b[90m",
 			"cyan_normal": "\u001b[36m",
@@ -355,8 +355,8 @@ gh_query() {
 			index: (.key + 1),
 			# create a unique list of patterns separated by a vertical line to use in
 			# extended grep
-			patterns: (if [.value.text_matches[] | .. | .text? | select(type=="string")] == [] then "null"
-				else [.value.text_matches[] | .. | .text? | select(type=="string")] | unique | join("|") end)
+			patterns: ([.value.text_matches[] | .. | .text? | select(type=="string")] as $patterns_array |
+				if $patterns_array == [] then "null" else $patterns_array | unique | join("|") end)
 			# ".file_name" is placed at 1st place to allow the "∑" results line to be
 			# left-aligned (stupid workaround)
 		} | [ .file_name, .index, "\(.owner)/\(.name)", .file_path, .patterns] | @tsv)' 2>"$store_gh_search_debug"); then
