@@ -411,7 +411,7 @@ view_contents() {
 gh_query "$*" | fzf \
 	--ansi \
 	--bind $'start:execute-silent:echo $FZF_PORT > $store_fzf_port' \
-	--bind "change:first+reload-sync:sleep 0.75; gh_query {q}" \
+	--bind "change:first+reload:sleep 0.75; gh_query {q}" \
 	--bind 'ctrl-b:execute-silent:gh browse --repo {4} {5}' \
 	--bind 'ctrl-e:execute:[[ -n {q} && -n {} ]] && open_in_editor=true view_contents {}' \
 	--bind 'ctrl-o:execute-silent:open_query_in_browser {q}' \
