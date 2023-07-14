@@ -132,10 +132,6 @@ export FZF_DEFAULT_OPTS="
 - If the `PAGER` environment variable is set to `less`, when opening the destination file, it
   will automatically scroll to the matching line found.
 
-### Miscellaneous
-- Fast movements between list items can cause the wrong file to be displayed in the
-  preview.
-- Be careful which files you open in your editor to avoid triggering something unintended.
 ---
 
 ## 💪 Contributing
