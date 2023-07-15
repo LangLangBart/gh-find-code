@@ -164,7 +164,7 @@ shift "$((OPTIND - 1))"
 
 # ====================== check requirements =======================
 
-for tool in bat fzf gh python; do
+for tool in bat curl fzf gh python; do
 	if ! type -p $tool >/dev/null; then
 		die "'$tool' was not found."
 	fi

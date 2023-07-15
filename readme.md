@@ -53,8 +53,9 @@ supporting regex.</sub>
 
 ---
 
-## 💻 Requirements
+## 💻 Requirements and Installation
 - [bat](https://github.com/sharkdp/bat#installation) - preview looks better
+- [curl](https://github.com/curl/curl) - sending updates to `fzf`
 - [Fuzzy Finder (fzf)](https://github.com/junegunn/fzf#installation) - allow for
   interaction with listed data
 - [GitHub command line tool (gh)](https://github.com/cli/cli#installation) - get the data
@@ -63,9 +64,6 @@ supporting regex.</sub>
   operating systems
 
 ```sh
-# install requirements
-brew install bat fzf gh python
-
 # install this extension
 gh ext install LangLangBart/gh-find-code
 # upgrade
