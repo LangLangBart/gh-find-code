@@ -234,6 +234,7 @@ gh_query() {
 
 			# listed items
 			while IFS=$'\t' read -r index owner_repo_name file_name file_path patterns; do
+				file_extension="null"
 				# check if the file does have a file extension and assign it
 				[[ $file_name =~ \.[[:alnum:]]+$ ]] && file_extension="${file_name##*.}"
 				# covers cases where the filename starts with a dot, for example '.zshrc'
@@ -323,7 +324,7 @@ view_contents() {
 		"--color always"
 	)
 
-	[[ -n $file_extension ]] && if bat --language "$file_extension" <<<"test" >/dev/null 2>&1; then
+	[[ $file_extension != "null" ]] && if bat --language "$file_extension" <<<"test" >/dev/null 2>&1; then
 		bat_args+=("--language $file_extension")
 	fi
 	IFS=' ' read -ra line_numbers <"${store_file_contents}_${index}_line_numbers"
