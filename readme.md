@@ -19,14 +19,21 @@ width="800">
 gh find-code [Flags] [Search query]
 ```
 
-- Use valid qualifiers like `repo`, `language`, `in`, ... to refine the results of your search.
+- Use valid qualifiers to refine the results of your search.
   - [GitHub Docs - Searching Code](https://docs.github.com/en/search-github/searching-on-github/searching-code)
+  - [GitHub Docs - Understanding the search syntax](https://docs.github.com/en/search-github/getting-started-with-searching-on-github/understanding-the-search-syntax)
 
-| Search query examples          | Description                                                     |
-| ------------------------------ | --------------------------------------------------------------- |
-| `'repo:junegunn/fzf FZF_PORT'` | searches only in the `junegunn/fzf` repo for `FZF_PORT`         |
-| `'language:js "new Proxy()"'`  | search for the exact string `"new Proxy()"` in JavaScript files |
-| `'in:path zsh'`                | matches code where `zsh` appears in the file path               |
+| Qualifier                      | Search query example             | Description                                             |
+| ------------------------------ | -------------------------------- | ------------------------------------------------------- |
+| `in`                           | `'in:path zsh'`                  | matches code where `zsh` appears in the file path       |
+| `user`                         | `'user:ashtom Development'`      | files with the word `Development` only from `@ashtom`   |
+| `org`                          | `'org:cli searcher'`             | searches all code in the `cli` org for `searcher`       |
+| `repo`                         | `'repo:junegunn/fzf FZF_PORT'`   | searches only in the `junegunn/fzf` repo for `FZF_PORT` |
+| `path`                         | `'path:.github shfmt'`           | files with the word `shfmt` in the `.github` path       |
+| `language`                     | `'language:js "new Proxy"'`      | search for the string `new Proxy` in JavaScript files   |
+| `size` <br> (>, >=, <, and <=) | `'size:<100 _gnu_generic'`       | files smaller than 100 bytes with `_gnu_generic`        |
+| `filename`                     | `'filename:.zshrc GOCACHE'`      | search in all filenames `.zshrc` for `GOCACHE`          |
+| `extension`                    | `'extension:rs "Hello, world!"'` | find `.rs` files with the string `Hello, world!`        |
 
 
 <sub>⚠️ The search syntax differs between the WebUI and the REST API, with the latter not
