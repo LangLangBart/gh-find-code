@@ -89,7 +89,7 @@ version_num() {
 }
 
 check_version() {
-	local tool=$1 min_version=$2
+	local user_version tool=$1 min_version=$2
 	user_version="$($tool --version | sed q)"
 	if [ "$(version_num "$min_version")" -gt "$(version_num "$user_version")" ]; then
 		die "The minimum required '$tool' version is $min_version. Your '$tool' version is: $user_version."
@@ -311,7 +311,7 @@ gh_query() {
 view_contents() {
 	declare -a line_numbers bat_args editor_args less_args
 	local file_extension index _ file_path
-	local file_name
+	local file_name tempfile_with_ext less_move_to_line
 	IFS=$'\t' read -r _ file_extension index _ file_path < <(sed -E $'s/[[:space:]]{2,}/\t/g' <<<"$@")
 
 	# '--wrap never' seems to be needed without it the fzf preview occasionally would move
@@ -375,7 +375,7 @@ view_contents() {
 	if $open_in_pager; then
 		bat_args+=("--paging always")
 		# the 'less' pager can move to a specific line
-		if [[ $(basename "$PAGER") == "less" ]]; then
+		if [[ $(basename "$PAGER") =~ ^(bat|less)$ ]]; then
 			# if the user asssigned the environment variable LESS with the
 			# '-F/--quit-if-one-screen' option, and set the '--pager' explicitly to 'less'
 			# the screen won't remain open for small text files that fit on the entire
