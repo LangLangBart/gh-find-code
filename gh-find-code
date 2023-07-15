@@ -423,7 +423,7 @@ gh_query "$*" | fzf \
 	--bind '?:change-preview(print_help_text)+change-preview-window:+1' \
 	--bind ';:jump' \
 	--bind 'load:change-preview([[ -n {q} && -n {} ]] && view_contents {})+change-preview-window:+{1}+3/3' \
-	--bind 'tab:change-preview-window(hidden|nohidden:+{1}+3/3)+change-preview:[[ -n {q} && -n {} ]] && view_contents {}' \
+	--bind 'tab:toggle-preview+change-preview-window(hidden|nohidden:+{1}+3/3)+change-preview:[[ -n {q} && -n {} ]] && view_contents {}' \
 	--border block \
 	--color 'bg+:233,bg:235,gutter:235,border:238,scrollbar:235' \
 	--color 'preview-bg:234,preview-border:236,preview-scrollbar:237' \
