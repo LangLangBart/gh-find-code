@@ -103,7 +103,7 @@ BAT_THEME="Dracula" gh find-code
 
 ### Editor
 - The extension uses the `EDITOR` environment variable to determine in which editor
-  the selected file should be opened, works with `nano`, `nvim/vi/vim` and
+  the selected file will be opened, works with `nano`, `nvim/vi/vim` and
   `VSCode/VSCodium`.
 - The code from opened files is held temporarily and gets removed when this program ends.
 
@@ -129,7 +129,7 @@ export FZF_DEFAULT_OPTS="
   macOS?](https://superuser.com/questions/496090/how-to-use-alt-commands-in-a-terminal-on-os-x)
 
 ### Pager
-- If the `PAGER` environment variable is set to `less`, when opening the destination file, it
+- If the `PAGER` environment variable is set to `less` or `bat`, when opening the destination file, it
   will automatically scroll to the matching line found.
 
 ---
