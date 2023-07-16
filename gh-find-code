@@ -70,7 +70,10 @@ cleanup() {
 	for file in "${temp_files[@]}"; do
 		# Use the 'find' command with a wildcard to retrieve all matching files.
 		find "${file}"* 2>/dev/null | while read -r matching_file; do
-			if ! $debug_mode || [[ ! -s $matching_file ]]; then
+			# these files aren't much use for debugging and can always be deleted
+			if [[ $matching_file == "${store_file_contents}"* ]]; then
+				rm -f "$matching_file"
+			elif ! $debug_mode || [[ ! -s $matching_file ]]; then
 				rm -f "$matching_file"
 			else
 				printf "\t%s\n" "$matching_file"
@@ -107,7 +110,7 @@ ${WHITE_BOLD}Usage${COLOR_RESET}
   gh find-code [Flags] [Search query]
 
 ${WHITE_BOLD}Flags${COLOR_RESET}
-  ${GREEN_NORMAL}-d${COLOR_RESET}  debug mode, temporary files are not deleted on exit
+  ${GREEN_NORMAL}-d${COLOR_RESET}  debug mode
   ${GREEN_NORMAL}-l${COLOR_RESET}  limit the number of listed results (default ${gh_default_limit}, max 100)
   ${GREEN_NORMAL}-h${COLOR_RESET}  help
 
