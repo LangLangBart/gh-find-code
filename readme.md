@@ -157,8 +157,4 @@ brew pre-commit
 pre-commit install --hook-type commit-msg --hook-type pre-commit
 # pre-commit installed at .git/hooks/commit-msg
 # pre-commit installed at .git/hooks/pre-commit
-
-# hook location
-.git/hooks/pre-commit
-.git/hooks/commit-msg
 ```

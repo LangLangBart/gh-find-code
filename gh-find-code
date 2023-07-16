@@ -338,7 +338,8 @@ view_contents() {
 	file_name=$(basename "$file_path")
 
 	# replace single quotes with escaped back ticks
-	bat_args+=("--file-name '${file_name//"'"/\`} │ 🅻  ${line_numbers[*]:-<none>}'")
+	# a file_name may start with a dash (-), don't leave a space between '--file-name' and the argument
+	bat_args+=("--file-name='${file_name//"'"/\`} │ 🅻  ${line_numbers[*]:-<none>}'")
 
 	if $open_in_editor && [[ -n $EDITOR ]]; then
 		tempfile_with_ext="${store_file_contents}_${index}_${file_name}"
