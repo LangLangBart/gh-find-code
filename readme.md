@@ -41,7 +41,7 @@ supporting regex.</sub>
 
 | Flags | Description                                              |
 | ----- | -------------------------------------------------------- |
-| `-d`  | debug mode, temporary files are not deleted on exit      |
+| `-d`  | debug mode                                               |
 | `-l`  | limit the number of listed results (default 30, max 100) |
 | `-h`  | help                                                     |
 
