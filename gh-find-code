@@ -42,6 +42,7 @@ RED_NORMAL='\033[0;31m'
 GREEN_NORMAL='\033[0;32m'
 YELLOW_NORMAL='\033[0;33m'
 MAGENTA_NORMAL="\033[0;35m"
+MAGENTA_BOLD="\033[1;35m"
 CYAN_NORMAL="\033[0;36m"
 CYAN_BOLD="\033[1;36m"
 WHITE_BOLD='\033[1;97m'
@@ -274,8 +275,10 @@ gh_query() {
 				done < <(grep --extended-regexp --line-number "$sanitized_patterns" "${store_file_contents}_${index}" | cut -d: -f1)
 
 				echo "${line_numbers[*]}" >"${store_file_contents}_${index}_line_numbers"
-				printf "%s  %s  %-3d  %b%s%b/%b%s%b  %b%s%b\n" \
-					"${line_numbers:-1}" "$file_extension" "$index" "$CYAN_NORMAL" "${owner_repo_name%/*}" "$COLOR_RESET" "$CYAN_BOLD" "${owner_repo_name#*/}" "$COLOR_RESET" "$MAGENTA_NORMAL" "$file_path" "$COLOR_RESET"
+				printf "%s  %s  %-3d  %b%s%b/%b%s%b  %b%s/%b%s%b\n" \
+					"${line_numbers:-1}" "$file_extension" "$index" "$CYAN_NORMAL" "${owner_repo_name%/*}" "$COLOR_RESET" \
+					"$CYAN_BOLD" "${owner_repo_name#*/}" "$COLOR_RESET" "$MAGENTA_NORMAL" "$(dirname "$file_path")" \
+					"$MAGENTA_BOLD" "$(basename "$file_path")" "$COLOR_RESET"
 			done
 
 			if $error_encountered; then
@@ -286,12 +289,12 @@ gh_query() {
 				curl --silent \
 					--request POST "localhost:$(cat "$store_fzf_port")" \
 					--data "transform-header(printf '%bAPI failed for repos/%s/contents/%s%b' \
-				'$RED_NORMAL' '$owner_repo_name' '$file_path' '$COLOR_RESET')+change-preview:cat '$store_gh_content_debug'"
+					'$RED_NORMAL' '$owner_repo_name' '$file_path' '$COLOR_RESET')+change-preview:cat '$store_gh_content_debug'"
 			else
 				curl --silent \
 					--request POST "localhost:$(cat "$store_fzf_port")" \
 					--data "transform-header:printf '%b%s of ∑ %s%b | ? help · esc quit%b\n' \
-				'$YELLOW_NORMAL' '$items' '$total_count' '$DARK_GRAY' '$COLOR_RESET'"
+					'$YELLOW_NORMAL' '$items' '$total_count' '$DARK_GRAY' '$COLOR_RESET'"
 			fi
 
 		} < <(echo "$data")
@@ -304,7 +307,8 @@ gh_query() {
 		else
 			curl --silent \
 				--request POST "localhost:$(cat "$store_fzf_port")" \
-				--data "transform-header:printf '%bFailed to get the search results, check the query syntax.%b' '$RED_NORMAL' '$COLOR_RESET'"
+				--data "transform-header:printf '%bFailed to get the search results, check the query syntax.%b' \
+				'$RED_NORMAL' '$COLOR_RESET'"
 			return 0
 		fi
 	fi
