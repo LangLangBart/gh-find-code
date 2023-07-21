@@ -312,12 +312,11 @@ gh_query() {
 			return 0
 		fi
 	fi
-
 }
 
 view_contents() {
 	declare -a line_numbers bat_args editor_args less_args
-	local file_extension index _ file_path
+	local file_extension index file_path
 	local file_name tempfile_with_ext less_move_to_line
 	IFS=$'\t' read -r _ file_extension index _ file_path < <(sed -E $'s/[[:space:]]{2,}/\t/g' <<<"$@")
 
@@ -414,6 +413,7 @@ view_contents() {
 
 	eval bat "${bat_args[*]}" "${store_file_contents}_${index}"
 }
+
 # ===================== lets begin ========================
 
 gh_query "$*" | fzf \
