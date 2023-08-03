@@ -288,11 +288,17 @@ gh_query() {
 
 			if $error_encountered; then
 				{
-					printf "\n%bList API limits:%b\n" "$RED_NORMAL" "$COLOR_RESET"
+					echo
 					gh api rate_limit \
 						--header "$gh_accept_json" \
 						--header "$gh_rest_api_version" \
-						--jq $'paths(scalars) as $p | [($p|join(".")), (getpath($p)|tostring)] | @tsv' |
+						--jq \
+						'(["List API Limits", "Used/Limit", "Resetting"] | (., map(length*"¯"))),
+						(.resources | to_entries[] | {
+							name: .key,
+							used_limit: "\(.value.used)/\(.value.limit)",
+							reset: "\(.value.reset | strflocaltime("%H:%M:%S %Z") ) (\((.value.reset - now) | (./60|ceil))m)"
+						}  | [.name, .used_limit, .reset]) | @tsv' |
 						column -ts $'\t'
 				} >>"$store_gh_content_debug"
 				curl --silent \
