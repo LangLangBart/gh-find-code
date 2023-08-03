@@ -239,8 +239,13 @@ gh_query() {
 				file_extension="null"
 				# check if the file does have a file extension and assign it
 				[[ $file_name =~ \.[[:alnum:]]+$ ]] && file_extension="${file_name##*.}"
-				# covers cases where the filename starts with a dot, for example '.zshrc'
-				[[ $file_name == ".${file_extension}" ]] && file_extension="$file_name"
+				# covers special cases where the syntax highlighting demands a leading
+				# dot, for example filenames like 'zshrc', '.zshrc' or 'macos.zshrc'
+				if bat --list-languages --color=never | grep --quiet --word-regexp "\.${file_extension}"; then
+					file_extension=".${file_extension}"
+				elif bat --list-languages --color=never | grep --quiet --word-regexp "\.${file_name}"; then
+					file_extension=".${file_name}"
+				fi
 
 				# strings containing operators like '*' or '+' need to be escaped, but keep the "|"
 				# character unescaped
@@ -284,7 +289,11 @@ gh_query() {
 			if $error_encountered; then
 				{
 					printf "\n%bList API limits:%b\n" "$RED_NORMAL" "$COLOR_RESET"
-					gh api rate_limit --jq $'paths(scalars) as $p | [($p|join(".")), (getpath($p)|tostring)] | @tsv' | column -ts $'\t'
+					gh api rate_limit \
+						--header "$gh_accept_json" \
+						--header "$gh_rest_api_version" \
+						--jq $'paths(scalars) as $p | [($p|join(".")), (getpath($p)|tostring)] | @tsv' |
+						column -ts $'\t'
 				} >>"$store_gh_content_debug"
 				curl --silent \
 					--request POST "localhost:$(cat "$store_fzf_port")" \
