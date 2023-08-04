@@ -299,7 +299,8 @@ gh_query() {
 							used_limit: "\(.value.used)/\(.value.limit)",
 							reset: "\(.value.reset | strflocaltime("%H:%M:%S %Z") ) (\((.value.reset - now) | (./60|ceil))m)"
 						}  | [.name, .used_limit, .reset]) | @tsv' |
-						column -ts $'\t'
+						column -ts $'\t' |
+						bat --plain --language COMMIT_EDITMSG
 				} >>"$store_gh_content_debug"
 				curl --silent \
 					--request POST "localhost:$(cat "$store_fzf_port")" \
