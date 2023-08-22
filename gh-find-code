@@ -54,12 +54,14 @@ store_file_contents=$(mktemp -t file_content) || die "Can't create temp file."
 store_fzf_port=$(mktemp -t fzf_port) || die "Can't create temp file."
 store_gh_content_debug=$(mktemp -t gh_content_debug) || die "Can't create temp file."
 store_gh_search_debug=$(mktemp -t gh_search_debug) || die "Can't create temp file."
+store_grep_extended_debug=$(mktemp -t grep_extended_debug) || die "Can't create temp file."
 declare -a temp_files=(
 	"$store_bat_debug"
 	"$store_file_contents"
 	"$store_fzf_port"
 	"$store_gh_content_debug"
 	"$store_gh_search_debug"
+	"$store_grep_extended_debug"
 )
 
 # ===================== basic functions =====================
@@ -72,7 +74,7 @@ cleanup() {
 		# Use the 'find' command with a wildcard to retrieve all matching files.
 		find "${file}"* 2>/dev/null | while read -r matching_file; do
 			# these files aren't much use for debugging and can always be deleted
-			if [[ $matching_file == "${store_file_contents}"* ]]; then
+			if [[ $matching_file == ${store_file_contents}* ]]; then
 				rm -f "$matching_file"
 			elif ! $debug_mode || [[ ! -s $matching_file ]]; then
 				rm -f "$matching_file"
@@ -283,7 +285,15 @@ gh_query() {
 				done < <(grep \
 					--extended-regexp \
 					--line-number -- \
-					"$sanitized_patterns" "${store_file_contents}_${index}" | cut -d: -f1)
+					"$sanitized_patterns" "${store_file_contents}_${index}" 2>"${store_grep_extended_debug}_${index}" | cut -d: -f1)
+				# save additional information only if grep encountered an error
+				if [[ -s ${store_grep_extended_debug}_${index} ]]; then
+					{
+						for value in "owner_repo_name" "file_path" "patterns" "index"; do
+							echo "$value = '${!value}'"
+						done
+					} >>"${store_grep_extended_debug}_${index}" 2>&1
+				fi
 
 				echo "${line_numbers[*]}" >"${store_file_contents}_${index}_line_numbers"
 				printf "%s  %s  %-3d  %b%s%b/%b%s%b  %b%s/%b%s%b\n" \
@@ -423,7 +433,7 @@ view_contents() {
 				"--tilde"               # don't show '~' symbols on lines after EOF
 				"+${less_move_to_line}" # as the variable name suggests
 			)
-			if [[ "$(version_num "$(less --version | sed q)")" -ge 550 ]]; then
+			if [[ $(version_num "$(less --version | sed q)") -ge 550 ]]; then
 				# https://www.greenwoodsoftware.com/less/old.html
 				# mouse input came with version 550
 				less_args+=("--mouse")
