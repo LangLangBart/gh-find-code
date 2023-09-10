@@ -341,7 +341,6 @@ gh_query() {
 				--request POST "localhost:$(cat "$store_fzf_port")" \
 				--data "transform-header:printf '%bFailed to get the search results, check the query syntax.%b' \
 				'$RED_NORMAL' '$COLOR_RESET'"
-			return 0
 		fi
 	fi
 }
