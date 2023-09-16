@@ -206,7 +206,7 @@ open_query_in_browser() {
 
 gh_query() {
 	local data input="$*"
-	local items total_count
+	local items total_count skip_count
 	local index owner_repo_name file_name file_path patterns
 	local file_extension sanitized_patterns sanitized_owner_repo_name sanitized_file_path
 	local matched_line error_encountered
@@ -233,6 +233,7 @@ gh_query() {
 		} | [.index, .owner_repo_name, .file_name, .file_path, .patterns] | @tsv)' 2>"$store_gh_search_debug"); then
 		{
 			error_encountered=false
+			skip_count=0
 			# first line
 			IFS=' ' read -r items total_count
 
@@ -260,21 +261,32 @@ gh_query() {
 				cp "$store_file_contents" "${store_file_contents}_${index}"
 				cp "$store_file_contents" "${store_file_contents}_${index}_line_numbers"
 
-				curl --silent \
-					--request POST "localhost:$(cat "$store_fzf_port")" \
-					--data "transform-header:printf '%b%s of %s collected...%b' '$DARK_GRAY' \
-					'$index' '$((total_count > gh_user_limit ? gh_user_limit : total_count))' '$COLOR_RESET'"
-
-				# TODO: fix symlink issue - gh find-code -d 'size:<10 zsh repo:karma0/zsh'
 				gh api "repos/${sanitized_owner_repo_name}/contents/${sanitized_file_path}" \
 					--cache "$gh_default_cache_time" \
 					--header "$gh_accept_raw" \
 					--header "$gh_rest_api_version" \
 					>"${store_file_contents}_${index}" \
 					2>"$store_gh_content_debug" || {
-					error_encountered=true
-					break
+					# There could be several reasons why pulling content might fail. One
+					# reason could be outdated cached search results from GitHub. For
+					# example, a user might have deleted their account, but their content
+					# is still in the search index. An example of this is
+					# 'repo:tahaluindo/black-mirror language:json jsonc/sort-keys'.
+					# Another reason could be symlink files, as encountered in 'size:<10
+					# zsh repo:karma0/zsh'.
+					if $debug_mode; then
+						error_encountered=true
+						break
+					else
+						skip_count=$((skip_count + 1))
+						continue
+					fi
 				}
+
+				curl --silent \
+					--request POST "localhost:$(cat "$store_fzf_port")" \
+					--data "transform-header:printf '%b%s of %s collected...%b' '$DARK_GRAY' \
+					'$index' '$((total_count > gh_user_limit ? gh_user_limit : total_count))' '$COLOR_RESET'"
 
 				line_numbers=()
 				[[ $patterns != "null" ]] && while IFS='' read -r matched_line; do
@@ -296,7 +308,7 @@ gh_query() {
 				fi
 
 				echo "${line_numbers[*]}" >"${store_file_contents}_${index}_line_numbers"
-				printf "%s  %s  %-3d  %b%s%b/%b%s%b  %b%s/%b%s%b\n" \
+				printf "%s\t%s\t%-3d\t%b%s%b/%b%s%b\t%b%s/%b%s%b\n" \
 					"${line_numbers:-1}" "$file_extension" "$index" "$CYAN_NORMAL" "${owner_repo_name%/*}" "$COLOR_RESET" \
 					"$CYAN_BOLD" "${owner_repo_name#*/}" "$COLOR_RESET" "$MAGENTA_NORMAL" "$(dirname "$file_path")" \
 					"$MAGENTA_BOLD" "$(basename "$file_path")" "$COLOR_RESET"
@@ -322,6 +334,12 @@ gh_query() {
 					--request POST "localhost:$(cat "$store_fzf_port")" \
 					--data "transform-header(printf '%bAPI failed for repos/%s/contents/%s%b' \
 					'$RED_NORMAL' '$owner_repo_name' '$file_path' '$COLOR_RESET')+change-preview:cat '$store_gh_content_debug'"
+			elif ((skip_count > 0)); then
+				curl --silent \
+					--request POST "localhost:$(cat "$store_fzf_port")" \
+					--data "transform-header:printf '%b%s of ∑ %s%b (Skipped: %d %s)%b | ? help · esc quit%b\n' \
+					'$YELLOW_NORMAL' '$items' '$total_count' '$RED_NORMAL' '$skip_count' \
+					'$([[ $skip_count -gt 1 ]] && echo items || echo item)' '$DARK_GRAY' '$COLOR_RESET'"
 			else
 				curl --silent \
 					--request POST "localhost:$(cat "$store_fzf_port")" \
@@ -349,7 +367,9 @@ view_contents() {
 	declare -a line_numbers bat_args editor_args less_args
 	local file_extension index file_path
 	local file_name tempfile_with_ext less_move_to_line
-	IFS=$'\t' read -r _ file_extension index _ file_path < <(sed -E $'s/[[:space:]]{2,}/\t/g' <<<"$@")
+	IFS=$'\t' read -r _ file_extension index _ file_path <<<"$@"
+	# remove trailing whitespace caused by the '%-3d' placeholder in the 'printf' command
+	index=$(tr -d '[:space:]' <<<"$index")
 
 	# '--wrap never' seems to be needed without it the fzf preview occasionally would move
 	# to the wrong line; '--theme' not needed because of 'BAT_THEME' set at the top
@@ -468,7 +488,7 @@ gh_query "$*" | fzf \
 	--color 'fg+:255,fg:regular:250,hl:40,hl+:40' \
 	--color 'pointer:9,spinner:92,marker:46' \
 	--color 'prompt:14,info:40,header:255:regular,label:bold' \
-	--delimiter '\s\s+' \
+	--delimiter '\t' \
 	--disabled \
 	--ellipsis '' \
 	--height=100% \
