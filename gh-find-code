@@ -90,16 +90,21 @@ die() {
 	exit 1
 }
 
-version_num() {
-	sed -E 's/^[^0-9]*//' <<<"$@" | awk -F '.' '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'
-}
-
+# This function validates the version of a tool.
 check_version() {
-	local user_version tool=$1 min_version=$2
-	user_version="$($tool --version | sed q)"
-	if [ "$(version_num "$min_version")" -gt "$(version_num "$user_version")" ]; then
-		die "The minimum required '$tool' version is $min_version. Your '$tool' version is: $user_version."
-	fi
+	local tool=$1 threshold=$2 on_error=${3:-die}
+	local user_version
+	declare -a ver_parts threshold_parts
+	user_version=$($tool --version 2>&1 | grep -Eo '[0-9]+(\.[0-9]+)*' | sed q)
+
+	IFS='.' read -ra ver_parts <<<"$user_version"
+	IFS='.' read -ra threshold_parts <<<"$threshold"
+
+	for i in "${!ver_parts[@]}"; do
+		if (("${ver_parts[i]}" < "${threshold_parts[i]}")); then
+			$on_error "Your '$tool' version '$user_version' is insufficient. The minimum required version is '$threshold'."
+		fi
+	done
 }
 
 # IMPORTANT: Keep it in sync with the readme.md
@@ -347,7 +352,7 @@ gh_query() {
 					'$YELLOW_NORMAL' '$items' '$total_count' '$DARK_GRAY' '$COLOR_RESET'"
 			fi
 
-		} < <(echo "$data")
+		} <<<"$data"
 
 	else
 		if [ -z "$input" ]; then
@@ -452,7 +457,7 @@ view_contents() {
 				"--tilde"               # don't show '~' symbols on lines after EOF
 				"+${less_move_to_line}" # as the variable name suggests
 			)
-			if [[ $(version_num "$(less --version | sed q)") -ge 550 ]]; then
+			if [[ -z $(check_version less 550 echo) ]]; then
 				# https://www.greenwoodsoftware.com/less/old.html
 				# mouse input came with version 550
 				less_args+=("--mouse")
