@@ -150,8 +150,7 @@ export FZF_DEFAULT_OPTS="
 > introduction](https://pre-commit.com/#introduction)
 
 ```sh
-# install
-brew pre-commit
+brew install pre-commit
 
 # install the git hook scripts
 pre-commit install --hook-type commit-msg --hook-type pre-commit
