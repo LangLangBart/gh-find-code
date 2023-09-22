@@ -507,9 +507,9 @@ view_contents() {
 
 # ===================== lets begin ========================
 
-gh_query "$*" | fzf \
+: | fzf \
 	--ansi \
-	--bind $'start:execute-silent:echo $FZF_PORT > $store_fzf_port' \
+	--bind $'start:execute-silent(echo $FZF_PORT > $store_fzf_port)+reload:gh_query {q}' \
 	--bind "change:first+reload:sleep 0.75; gh_query {q}" \
 	--bind 'ctrl-b:execute-silent:gh browse --repo {4} {5}:{1}' \
 	--bind 'ctrl-e:execute:[[ -n {q} && -n {} ]] && open_in_editor=true view_contents {}' \
