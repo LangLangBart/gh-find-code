@@ -192,8 +192,9 @@ check_version gh "$min_gh_version"
 # Verify if there are at least two spaces between columns. The delimiter in 'fzf' is set to
 # '\t' or '\s\s+' to separate fields. By default, the 'column' command should separate any
 # columns with two spaces. If this is not the case, you cannot proceed. It appears that
-# older versions of 'column' had a default of two spaces, whereas newer versions allow
-# defining the output-separator.
+# older versions, e.g. BSD 1997, of 'column' had a default of two spaces.
+# https://github.com/freebsd/freebsd-src/blob/0da30e9aa/usr.bin/column/column.c#L245
+# Newer versions allow the output-separator to be defined.
 # https://github.com/util-linux/util-linux/commit/47bd8ddc
 # https://github.com/util-linux/util-linux/issues/1699#issuecomment-1140972918
 # https://man7.org/linux/man-pages/man1/column.1.html
