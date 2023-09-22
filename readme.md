@@ -143,9 +143,6 @@ export FZF_DEFAULT_OPTS="
 ---
 
 ## 💪 Contributing
-- The [pre-commit](https://github.com/pre-commit/pre-commit) tool is used to handle
-  routine code checks. To customize this tool, refer to the
-  [.pre-commit-config.yaml](.pre-commit-config.yaml) file.
 
 > [!NOTE]
 > _Pre-commit is a multi-language package manager for pre-commit hooks. You specify a list_
