@@ -36,14 +36,17 @@ gh find-code [Flags] [Search query]
 | `extension`                    | `'extension:rs "Hello, world!"'` | find `.rs` files with the string `Hello, world!`        |
 
 
-<sub>⚠️ The search syntax differs between the WebUI and the REST API, with the latter not
-supporting regex.</sub>
+> [!NOTE]
+> The search syntax differs between the WebUI and the REST API, with the latter not
+> supporting regex.
 
-| Flags | Description                                              |
-| ----- | -------------------------------------------------------- |
-| `-d`  | debug mode                                               |
-| `-l`  | limit the number of listed results (default 30, max 100) |
-| `-h`  | help                                                     |
+---
+
+| Flags | Description                                                   |
+| ----- | ------------------------------------------------------------- |
+| `-d`  | debug mode, primarily used for identifying and resolving bugs |
+| `-l`  | limit the number of listed results (default 30, max 100)      |
+| `-h`  | help                                                          |
 
 | Key Bindings fzf            | Description                            |
 | --------------------------- | -------------------------------------- |
@@ -108,9 +111,9 @@ BAT_THEME="Dracula" gh find-code
 
 ### Editor
 - The extension uses the `EDITOR` environment variable to determine in which editor
-  the selected file will be opened, works with `nano`, `nvim/vi/vim` and
+  the selected file will be opened, works with `nano`, `nvim/vi/vim`,  and
   `VSCode/VSCodium`.
-- The code from opened files is held temporarily and gets removed when this program ends.
+- The code from opened files is stored temporarily and is removed when the program ends.
 
 ```sh
 # Set the editor to Visual Studio Code
@@ -141,12 +144,13 @@ export FZF_DEFAULT_OPTS="
 
 ## 💪 Contributing
 - The [pre-commit](https://github.com/pre-commit/pre-commit) tool is used to handle
-  routine code checks. To customize the tool, refer to the
+  routine code checks. To customize this tool, refer to the
   [.pre-commit-config.yaml](.pre-commit-config.yaml) file.
 
-> Pre-commit is a multi-language package manager for pre-commit hooks. You specify a list
-> of hooks you want and **pre-commit manages the installation and execution** of any hook
-> written in any language before every commit. Source: [pre-commit
+> [!NOTE]
+> _Pre-commit is a multi-language package manager for pre-commit hooks. You specify a list_
+> _of hooks you want and **pre-commit manages the installation and execution** of any hook_
+> _written in any language before every commit._ **Source:** [pre-commit
 > introduction](https://pre-commit.com/#introduction)
 
 ```sh
