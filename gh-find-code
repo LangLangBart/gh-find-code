@@ -73,9 +73,12 @@ declare -a temp_files=(
 
 # ===================== basic functions =====================
 
-trap cleanup EXIT SIGHUP SIGINT
+trap 'cleanup &' EXIT SIGHUP SIGINT
 
 cleanup() {
+	# TODO: find a better solution
+	# wait for the while loop to finish
+	sleep 2
 	$debug_mode && printf "%bDebug mode was ON, the following files weren't deleted.%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
 	for file in "${temp_files[@]}"; do
 		# Use the 'find' command with a wildcard to retrieve all matching files.
@@ -268,6 +271,9 @@ gh_query() {
 
 			# listed items
 			while IFS=$'\t' read -r index owner_repo_name file_name file_path patterns; do
+				# Check if the parent process is still running or kill the loop
+				! kill -0 "$PPID" 2>/dev/null && break
+
 				file_extension="null"
 				# Check if the file has a file extension and assign it.
 				if [[ $file_name =~ \.[[:alnum:]]+$ ]]; then
