@@ -13,6 +13,7 @@ set -o allexport -o errexit -o nounset -o pipefail
 # --jq '[.data.__type.enumValues[].name] | join(", ")'
 
 # TODO: add tests
+# TODO: experiment with 'parallel' to speed things up
 
 # ====================== set variables =======================
 
@@ -21,9 +22,9 @@ open_in_editor=false
 open_in_pager=false
 fzf_prompt="❮❯ Code: "
 BAT_THEME=${BAT_THEME:-Monokai Extended}
-# for 'fzf' to work correctly it needs to be set to bash
+# bash is needed to use exported functions when the default shellis not bash
 SHELL=bash
-# a cached version will be used and only then a new one will be pulled
+# A cached version will be used before a new one is pulled.
 gh_default_cache_time="1h"
 gh_default_limit=30
 gh_user_limit=${gh_user_limit:-$gh_default_limit}
@@ -48,13 +49,17 @@ CYAN_BOLD="\033[1;36m"
 WHITE_BOLD='\033[1;97m'
 DARK_GRAY='\033[0;90m'
 
-# create temp files
+# Creating temporary files. The current setup works but is very verbose. An attempt to use
+# associative arrays with 'declare -A' was unsuccessful as I couldn't access the associated
+# filename in child processes.
 store_bat_debug=$(mktemp -t bat_debug) || die "Can't create temp file."
 store_file_contents=$(mktemp -t file_content) || die "Can't create temp file."
 store_fzf_port=$(mktemp -t fzf_port) || die "Can't create temp file."
 store_gh_content_debug=$(mktemp -t gh_content_debug) || die "Can't create temp file."
 store_gh_search_debug=$(mktemp -t gh_search_debug) || die "Can't create temp file."
 store_grep_extended_debug=$(mktemp -t grep_extended_debug) || die "Can't create temp file."
+store_input_list=$(mktemp -t input_list) || die "Can't create temp file."
+store_tee_append=$(mktemp -t tee_append) || die "Can't create temp file."
 declare -a temp_files=(
 	"$store_bat_debug"
 	"$store_file_contents"
@@ -62,6 +67,8 @@ declare -a temp_files=(
 	"$store_gh_content_debug"
 	"$store_gh_search_debug"
 	"$store_grep_extended_debug"
+	"$store_input_list"
+	"$store_tee_append"
 )
 
 # ===================== basic functions =====================
@@ -73,7 +80,7 @@ cleanup() {
 	for file in "${temp_files[@]}"; do
 		# Use the 'find' command with a wildcard to retrieve all matching files.
 		find "${file}"* 2>/dev/null | while read -r matching_file; do
-			# these files aren't much use for debugging and can always be deleted
+			# These files are not really useful for debugging and can always be deleted.
 			if [[ $matching_file == ${store_file_contents}* ]]; then
 				rm -f "$matching_file"
 			elif ! $debug_mode || [[ ! -s $matching_file ]]; then
@@ -173,7 +180,7 @@ shift "$((OPTIND - 1))"
 
 # ====================== check requirements =======================
 
-for tool in bat curl fzf gh python; do
+for tool in bat column curl fzf gh python; do
 	if ! type -p $tool >/dev/null; then
 		die "'$tool' was not found."
 	fi
@@ -181,6 +188,19 @@ done
 
 check_version fzf "$min_fzf_version"
 check_version gh "$min_gh_version"
+
+# Verify if there are at least two spaces between columns. The delimiter in 'fzf' is set to
+# '\t' or '\s\s+' to separate fields. By default, the 'column' command should separate any
+# columns with two spaces. If this is not the case, you cannot proceed. It appears that
+# older versions of 'column' had a default of two spaces, whereas newer versions allow
+# defining the output-separator.
+# https://github.com/util-linux/util-linux/commit/47bd8ddc
+# https://github.com/util-linux/util-linux/issues/1699#issuecomment-1140972918
+# https://man7.org/linux/man-pages/man1/column.1.html
+
+if [[ $(column -t <<<"A Z" 2>/dev/null) != *"  "* ]]; then
+	die "Your 'column' command does not separate columns with at least two spaces. Please report this issue, stating your operating system and 'column' version."
+fi
 
 # ===================== helper functions ==========================
 
@@ -239,28 +259,33 @@ gh_query() {
 		{
 			error_encountered=false
 			skip_count=0
+			# Ensure the file is empty before initiating the loop, as it appends the
+			# input list to the file throughout the loop.
+			: >"$store_tee_append"
 			# first line
 			IFS=' ' read -r items total_count
 
 			# listed items
 			while IFS=$'\t' read -r index owner_repo_name file_name file_path patterns; do
 				file_extension="null"
-				# check if the file does have a file extension and assign it
-				[[ $file_name =~ \.[[:alnum:]]+$ ]] && file_extension="${file_name##*.}"
-				# covers special cases where the syntax highlighting demands a leading
-				# dot, for example filenames like 'zshrc', '.zshrc' or 'macos.zshrc'
+				# Check if the file has a file extension and assign it.
+				if [[ $file_name =~ \.[[:alnum:]]+$ ]]; then
+					file_extension="${file_name##*.}"
+				fi
+				# This covers special cases where syntax highlighting requires a leading
+				# dot, such as filenames like 'zshrc', '.zshrc' or 'macos.zshrc'
 				if bat --list-languages --color=never | grep --quiet --word-regexp "\.${file_extension}"; then
 					file_extension=".${file_extension}"
 				elif bat --list-languages --color=never | grep --quiet --word-regexp "\.${file_name}"; then
 					file_extension=".${file_name}"
 				fi
 
-				# strings containing operators like '*' or '+' need to be escaped, but keep the "|"
-				# character unescaped
+				# Strings that contain operators such as '*' or '+' should be escaped.
+				# However, the "|" character should be left unescaped.
 				sanitized_patterns=$(printf '%q\n' "$patterns" | sed 's/\\\|/|/g')
 
-				# these sanitizations are necessary because it is possible that file paths can contain
-				# special characters, e.g. hashtags (#)
+				# These sanitizations are necessary because file paths may contain special
+				# characters, such as hashtags (#).
 				sanitized_owner_repo_name=$(sanitize_input "$owner_repo_name")
 				sanitized_file_path=$(sanitize_input "$file_path")
 				cp "$store_file_contents" "${store_file_contents}_${index}"
@@ -303,7 +328,7 @@ gh_query() {
 					--extended-regexp \
 					--line-number -- \
 					"$sanitized_patterns" "${store_file_contents}_${index}" 2>"${store_grep_extended_debug}_${index}" | cut -d: -f1)
-				# save additional information only if grep encountered an error
+				# Save additional information only if an error is encountered by grep
 				if [[ -s ${store_grep_extended_debug}_${index} ]]; then
 					{
 						for value in "owner_repo_name" "file_path" "patterns" "index"; do
@@ -316,9 +341,11 @@ gh_query() {
 				printf "%s\t%s\t%-3d\t%b%s%b/%b%s%b\t%b%s/%b%s%b\n" \
 					"${line_numbers:-1}" "$file_extension" "$index" "$CYAN_NORMAL" "${owner_repo_name%/*}" "$COLOR_RESET" \
 					"$CYAN_BOLD" "${owner_repo_name#*/}" "$COLOR_RESET" "$MAGENTA_NORMAL" "$(dirname "$file_path")" \
-					"$MAGENTA_BOLD" "$(basename "$file_path")" "$COLOR_RESET"
+					"$MAGENTA_BOLD" "$(basename "$file_path")" "$COLOR_RESET" |
+					tee -a "$store_tee_append"
 			done
-
+			# Format the input list into a structured table.
+			column -ts $'\t' <"$store_tee_append" >"$store_input_list"
 			if $error_encountered; then
 				{
 					echo
@@ -342,13 +369,13 @@ gh_query() {
 			elif ((skip_count > 0)); then
 				curl --silent \
 					--request POST "localhost:$(cat "$store_fzf_port")" \
-					--data "transform-header:printf '%b%s of ∑ %s%b (Skipped: %d %s)%b | ? help · esc quit%b\n' \
+					--data "reload(cat $store_input_list)+transform-header:printf '%b%s of ∑ %s%b (Skipped: %d %s)%b | ? help · esc quit%b\n' \
 					'$YELLOW_NORMAL' '$items' '$total_count' '$RED_NORMAL' '$skip_count' \
 					'$([[ $skip_count -gt 1 ]] && echo items || echo item)' '$DARK_GRAY' '$COLOR_RESET'"
 			else
 				curl --silent \
 					--request POST "localhost:$(cat "$store_fzf_port")" \
-					--data "transform-header:printf '%b%s of ∑ %s%b | ? help · esc quit%b\n' \
+					--data "reload(cat $store_input_list)+transform-header:printf '%b%s of ∑ %s%b | ? help · esc quit%b\n' \
 					'$YELLOW_NORMAL' '$items' '$total_count' '$DARK_GRAY' '$COLOR_RESET'"
 			fi
 
@@ -372,12 +399,13 @@ view_contents() {
 	declare -a line_numbers bat_args editor_args less_args
 	local file_extension index file_path
 	local file_name tempfile_with_ext less_move_to_line
-	IFS=$'\t' read -r _ file_extension index _ file_path <<<"$@"
-	# remove trailing whitespace caused by the '%-3d' placeholder in the 'printf' command
+	IFS=$'\t' read -r _ file_extension index _ file_path < <(sed -E $'s/[[:space:]]{2,}/\t/g' <<<"$@")
+	# Remove trailing whitespace that was caused by the '%-3d' placeholder in 'printf'.
 	index=$(tr -d '[:space:]' <<<"$index")
 
-	# '--wrap never' seems to be needed without it the fzf preview occasionally would move
-	# to the wrong line; '--theme' not needed because of 'BAT_THEME' set at the top
+	# The '--wrap never' option is necessary as, without it, the 'fzf' preview may
+	# occasionally navigate to the incorrect line. The '--theme' option is not required
+	# due to the 'BAT_THEME' set at the beginning.
 	bat_args=(
 		$'--terminal-width ${FZF_PREVIEW_COLUMNS:-$COLUMNS}'
 		"--wrap never"
@@ -390,17 +418,16 @@ view_contents() {
 	fi
 	IFS=' ' read -ra line_numbers <"${store_file_contents}_${index}_line_numbers"
 
-	# NOTE: in 'bat', '--line-range' overwrites prior flags, thus makes it inadequate for
-	# our use case but '--highlight-line' can be used multiple times, would be handy if
-	# the preview would only show relevant code with a bit of context around each match
+	# NOTE: The '--line-range' in 'bat' overrides preceding flags. However, the
+	# '--highlight-line' attribute can be  utilized multiple times.
 	# https://github.com/sharkdp/bat/pull/162#pullrequestreview-125072252
 	for number in "${line_numbers[@]}"; do
 		bat_args+=("--highlight-line $number")
 	done
 	file_name=$(basename "$file_path")
 
-	# replace single quotes with escaped back ticks
-	# a file_name may start with a dash (-), don't leave a space between '--file-name' and the argument
+	# Replace single quotes with escaped back ticks. A file_name might start with a dash
+	# (-). Ensure there is no space between '--file-name' and the argument.
 	bat_args+=("--file-name='${file_name//"'"/\`} │ 🅻  ${line_numbers[*]:-<none>}'")
 
 	if $open_in_editor && [[ -n $EDITOR ]]; then
@@ -437,15 +464,15 @@ view_contents() {
 
 	if $open_in_pager; then
 		bat_args+=("--paging always")
-		# the 'less' pager can move to a specific line
+		# The 'less' pager can move to a specific line.
 		if [[ $(basename "$PAGER") =~ ^(bat|less)$ ]]; then
-			# if the user asssigned the environment variable LESS with the
-			# '-F/--quit-if-one-screen' option, and set the '--pager' explicitly to 'less'
-			# the screen won't remain open for small text files that fit on the entire
-			# screen. The simplest solution is to unset the  'LESS' variable and define my
-			# own settings
+			# If the user has assigned the environment variable LESS with the
+			# '-F/--quit-if-one-screen' option, and explicitly set the '--pager' to 'less',
+			# the screen will not remain open for small text files that fit on the entire
+			# screen. The simplest solution is to unset the  'LESS' variable and define our
+			# own settings.
 			[[ -n $LESS ]] && unset LESS
-			# account for an offset of 3 lines for the bat header
+			# Account for an offset of 3 lines for the bat header.
 			less_move_to_line=$((${line_numbers:-1} + 3))
 			less_args=(
 				"--LONG-PROMPT"         # Long prompts ("Line X of Y")
@@ -493,7 +520,7 @@ gh_query "$*" | fzf \
 	--color 'fg+:255,fg:regular:250,hl:40,hl+:40' \
 	--color 'pointer:9,spinner:92,marker:46' \
 	--color 'prompt:14,info:40,header:255:regular,label:bold' \
-	--delimiter '\t' \
+	--delimiter '\t|\s\s+' \
 	--disabled \
 	--ellipsis '' \
 	--height=100% \
