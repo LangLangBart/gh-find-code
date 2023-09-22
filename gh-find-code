@@ -281,9 +281,10 @@ gh_query() {
 					file_extension=".${file_name}"
 				fi
 
-				# Strings that contain operators such as '*' or '+' should be escaped.
+				# Escape special charters before using the string in extended 'grep'.
 				# However, the "|" character should be left unescaped.
-				sanitized_patterns=$(printf '%q\n' "$patterns" | sed 's/\\\|/|/g')
+				# shellcheck disable=SC2001
+				sanitized_patterns=$(sed -e 's/[][?*+.\/$^(){}]/\\&/g' <<<"$patterns")
 
 				# These sanitizations are necessary because file paths may contain special
 				# characters, such as hashtags (#).
