@@ -49,6 +49,15 @@ CYAN_BOLD="\033[1;36m"
 WHITE_BOLD='\033[1;97m'
 DARK_GRAY='\033[0;90m'
 
+# =========================== basics ============================
+
+trap cleanup EXIT SIGHUP SIGINT
+
+die() {
+	echo ERROR: "$*" >&2
+	exit 1
+}
+
 # Creating temporary files. The current setup works but is very verbose. An attempt to use
 # associative arrays with 'declare -A' was unsuccessful as I couldn't access the associated
 # filename in child processes.
@@ -71,14 +80,11 @@ declare -a temp_files=(
 	"$store_tee_append"
 )
 
-# ===================== basic functions =====================
-
-trap 'cleanup &' EXIT SIGHUP SIGINT
-
 cleanup() {
-	# TODO: find a better solution
-	# wait for the while loop to finish
-	sleep 2
+	# TODO: find a better solution; the while loop requires some time to terminate and
+	# might leave some files behind if the 'cleanup' function is run immediately upon exit
+	sleep 2 &
+	wait
 	$debug_mode && printf "%bDebug mode was ON, the following files weren't deleted.%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
 	for file in "${temp_files[@]}"; do
 		# Use the 'find' command with a wildcard to retrieve all matching files.
@@ -93,11 +99,6 @@ cleanup() {
 			fi
 		done
 	done
-}
-
-die() {
-	echo ERROR: "$*" >&2
-	exit 1
 }
 
 # This function validates the version of a tool.
@@ -339,7 +340,7 @@ gh_query() {
 				# Save additional information only if an error is encountered by grep
 				if [[ -s ${store_grep_extended_debug}_${index} ]]; then
 					{
-						for value in "owner_repo_name" "file_path" "patterns" "index"; do
+						for value in "index" "owner_repo_name" "file_path" "patterns" "sanitized_patterns"; do
 							echo "$value = '${!value}'"
 						done
 					} >>"${store_grep_extended_debug}_${index}" 2>&1
