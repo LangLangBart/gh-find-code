@@ -239,7 +239,7 @@ gh_query() {
 	local items total_count skip_count
 	local index owner_repo_name file_name file_path patterns
 	local file_extension sanitized_patterns sanitized_owner_repo_name sanitized_file_path
-	local matched_line error_encountered
+	local matched_line error_encountered redirect_location
 	declare -a line_numbers
 	if data=$(gh api search/code \
 		--method GET \
@@ -264,6 +264,7 @@ gh_query() {
 		{
 			error_encountered=false
 			skip_count=0
+			redirect_location="/dev/null"
 			# Ensure the file is empty before initiating the loop, as it appends the
 			# input list to the file throughout the loop.
 			: >"$store_tee_append"
@@ -287,11 +288,6 @@ gh_query() {
 				elif bat --list-languages --color=never | grep --quiet --word-regexp "\.${file_name}"; then
 					file_extension=".${file_name}"
 				fi
-
-				# Escape special charters before using the string in extended 'grep'.
-				# However, the "|" character should be left unescaped.
-				# shellcheck disable=SC2001
-				sanitized_patterns=$(sed -e 's/[][?*+.\/$^(){}]/\\&/g' <<<"$patterns")
 
 				# These sanitizations are necessary because file paths may contain special
 				# characters, such as hashtags (#).
@@ -327,6 +323,15 @@ gh_query() {
 					--data "transform-header:printf '%b%s of %s collected...%b' '$DARK_GRAY' \
 					'$index' '$((total_count > gh_user_limit ? gh_user_limit : total_count))' '$COLOR_RESET'"
 
+				# Escape special charters before using the string in extended 'grep'.
+				# However, the "|" character should be left unescaped.
+				# shellcheck disable=SC2001
+				sanitized_patterns=$(sed -e 's/[][?*+.\/$^(){}]/\\&/g' <<<"$patterns")
+
+				if $debug_mode; then
+					redirect_location="${store_grep_extended_debug}_${index}"
+				fi
+
 				line_numbers=()
 				[[ $patterns != "null" ]] && while IFS='' read -r matched_line; do
 					line_numbers+=("$matched_line")
@@ -336,9 +341,9 @@ gh_query() {
 				done < <(grep \
 					--extended-regexp \
 					--line-number -- \
-					"$sanitized_patterns" "${store_file_contents}_${index}" 2>"${store_grep_extended_debug}_${index}" | cut -d: -f1)
+					"$sanitized_patterns" "${store_file_contents}_${index}" 2>"${redirect_location}" | cut -d: -f1)
 				# Save additional information only if an error is encountered by grep
-				if [[ -s ${store_grep_extended_debug}_${index} ]]; then
+				if $debug_mode && [[ -s ${store_grep_extended_debug}_${index} ]]; then
 					{
 						for value in "index" "owner_repo_name" "file_path" "patterns" "sanitized_patterns"; do
 							echo "$value = '${!value}'"
