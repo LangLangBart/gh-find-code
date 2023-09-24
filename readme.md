@@ -36,7 +36,7 @@ gh find-code [Flags] [Search query]
 | `extension`                    | `'extension:rs "Hello, world!"'` | find `.rs` files with the string `Hello, world!`        |
 
 
-> [!NOTE]
+> [!IMPORTANT]
 > The search syntax differs between the WebUI and the REST API, with the latter not
 > supporting regex.
 
@@ -51,7 +51,6 @@ gh find-code [Flags] [Search query]
 | Key Bindings fzf            | Description                            |
 | --------------------------- | -------------------------------------- |
 | <kbd>?</kbd>                | help                                   |
-| <kbd>;</kbd>                | quick jump                             |
 | <kbd>ctrl</kbd><kbd>b</kbd> | open the file in the browser           |
 | <kbd>ctrl</kbd><kbd>e</kbd> | open the file content in the '$EDITOR' |
 | <kbd>ctrl</kbd><kbd>o</kbd> | open the search query in the browser   |
