@@ -46,6 +46,7 @@ MAGENTA_NORMAL="\033[0;35m"
 MAGENTA_BOLD="\033[1;35m"
 CYAN_NORMAL="\033[0;36m"
 CYAN_BOLD="\033[1;36m"
+WHITE_NORMAL='\033[0;97m'
 WHITE_BOLD='\033[1;97m'
 DARK_GRAY='\033[0;90m'
 
@@ -85,6 +86,7 @@ store_input_list="${scratch_directory}/input_list"
 store_tee_append="${scratch_directory}/tee_append"
 store_fzf_port="${scratch_directory}/fzf_port"
 store_file_contents="${scratch_directory}/file_content"
+store_skip_count="${scratch_directory}/skip_count"
 
 # Debug directory
 debug_directory=$(mktemp -dt "$date_prefix.gh_find_code.debug") || die "Can't create debug directory."
@@ -230,7 +232,7 @@ gh_query() {
 	local items total_count skip_count
 	local index owner_repo_name file_name file_path patterns
 	local file_extension sanitized_patterns sanitized_owner_repo_name sanitized_file_path
-	local matched_line error_encountered redirect_location
+	local matched_line error_encountered redirect_location index_color
 	declare -a line_numbers
 	if data=$(gh api search/code \
 		--method GET \
@@ -259,6 +261,7 @@ gh_query() {
 			# Ensure the file is empty before initiating the loop, as it appends the
 			# input list to the file throughout the loop.
 			: >"$store_tee_append"
+			: >"$store_skip_count"
 			# first line
 			IFS=' ' read -r items total_count
 
@@ -270,7 +273,7 @@ gh_query() {
 				# keeps going through the data list.
 				# Check if the parent process is still running or kill the loop
 				! kill -0 "$PPID" 2>/dev/null && break
-
+				index_color="$WHITE_NORMAL"
 				file_extension="null"
 				# Check if the file has a file extension and assign it.
 				if [[ $file_name =~ \.[[:alnum:]]+$ ]]; then
@@ -291,37 +294,50 @@ gh_query() {
 				cp "$store_file_contents" "${store_file_contents}_${index}"
 				cp "$store_file_contents" "${store_file_contents}_${index}_line_numbers"
 
-				gh api "repos/${sanitized_owner_repo_name}/contents/${sanitized_file_path}" \
+				# Escape special charters before using the string in extended 'grep'.
+				# However, the "|" character should be left unescaped.
+				# shellcheck disable=SC2001
+				sanitized_patterns=$(sed -e 's/[][?*+.\/$^(){}]/\\&/g' <<<"$patterns")
+
+				if gh api "repos/${sanitized_owner_repo_name}/contents/${sanitized_file_path}" \
 					--cache "$gh_default_cache_time" \
 					--header "$gh_accept_raw" \
 					--header "$gh_rest_api_version" \
 					>"${store_file_contents}_${index}" \
-					2>"$store_gh_content_debug" || {
+					2>"$store_gh_content_debug"; then
+					# The first attempt is the typical way and is usually successful.
+					:
+				elif gh api "https://raw.githubusercontent.com/${sanitized_owner_repo_name}/HEAD/${sanitized_file_path}" \
+					--cache "$gh_default_cache_time" \
+					--header "$gh_accept_raw" \
+					--header "$gh_rest_api_version" \
+					>"${store_file_contents}_${index}" \
+					2>"$store_gh_content_debug"; then
+					# This case covers 'symlinked' files, for example:
+					# 'repo:model-checking/kani in:path macos'.
+					:
+				else
 					# There could be several reasons why pulling content might fail. One
 					# reason could be outdated cached search results from GitHub. For
 					# example, a user might have deleted their account, but their content
-					# is still in the search index. An example of this is
-					# 'repo:tahaluindo/black-mirror language:json jsonc/sort-keys'.
-					# Another reason could be symlink files, as encountered in 'size:<10
-					# zsh repo:karma0/zsh'.
+					# is still in the search index.
+					echo "$index" >>"$store_skip_count"
 					if $debug_mode; then
 						error_encountered=true
-						break
 					else
-						skip_count=$((skip_count + 1))
-						continue
+						{
+							cat "$store_gh_content_debug"
+							printf "\n[%s] SKIPPED: The contents of this file couldn't be fetched.\n\n" "$(date -u +%Y-%m-%dT%H-%M-%S)"
+						} >>"${store_file_contents}_${index}"
 					fi
-				}
+					index_color="$RED_NORMAL"
+					patterns="null"
+				fi
 
 				curl --silent \
 					--request POST "localhost:$(cat "$store_fzf_port")" \
 					--data "transform-header:printf '%b%s of %s collected...%b' '$DARK_GRAY' \
 					'$index' '$((total_count > gh_user_limit ? gh_user_limit : total_count))' '$COLOR_RESET'"
-
-				# Escape special charters before using the string in extended 'grep'.
-				# However, the "|" character should be left unescaped.
-				# shellcheck disable=SC2001
-				sanitized_patterns=$(sed -e 's/[][?*+.\/$^(){}]/\\&/g' <<<"$patterns")
 
 				if $debug_mode; then
 					redirect_location="${store_grep_extended_debug}_${index}"
@@ -347,14 +363,21 @@ gh_query() {
 				fi
 
 				echo "${line_numbers[*]}" >"${store_file_contents}_${index}_line_numbers"
-				printf "%s\t%s\t%-3d\t%b%s%b/%b%s%b\t%b%s/%b%s%b\n" \
-					"${line_numbers:-1}" "$file_extension" "$index" "$CYAN_NORMAL" "${owner_repo_name%/*}" "$COLOR_RESET" \
-					"$CYAN_BOLD" "${owner_repo_name#*/}" "$COLOR_RESET" "$MAGENTA_NORMAL" "$(dirname "$file_path")" \
+				printf "%s\t%s\t%b%-3d%b\t%b%s%b/%b%s%b\t%b%s/%b%s%b\n" \
+					"${line_numbers:-1}" "$file_extension" "$index_color" "$index" "$COLOR_RESET" \
+					"$CYAN_NORMAL" "${owner_repo_name%/*}" "$COLOR_RESET" "$CYAN_BOLD" \
+					"${owner_repo_name#*/}" "$COLOR_RESET" "$MAGENTA_NORMAL" "$(dirname "$file_path")" \
 					"$MAGENTA_BOLD" "$(basename "$file_path")" "$COLOR_RESET" |
 					tee -a "$store_tee_append"
+
+				if $error_encountered; then
+					break
+				fi
 			done
 			# Format the input list into a structured table.
 			column -ts $'\t' <"$store_tee_append" >"$store_input_list"
+			skip_count="$(sed -n '$=' "$store_skip_count")"
+
 			if $error_encountered; then
 				{
 					echo
@@ -378,9 +401,10 @@ gh_query() {
 			elif ((skip_count > 0)); then
 				curl --silent \
 					--request POST "localhost:$(cat "$store_fzf_port")" \
-					--data "reload(cat $store_input_list)+transform-header:printf '%b%s of ∑ %s%b (Skipped: %d %s)%b | ? help · esc quit%b\n' \
+					--data "reload(cat $store_input_list)+transform-header:printf '%b%s of ∑ %s%b (Skipped: %d %s [%s])%b | ? help · esc quit%b\n' \
 					'$YELLOW_NORMAL' '$items' '$total_count' '$RED_NORMAL' '$skip_count' \
-					'$([[ $skip_count -gt 1 ]] && echo items || echo item)' '$DARK_GRAY' '$COLOR_RESET'"
+					'$([[ $skip_count -gt 1 ]] && echo items || echo item)' \
+					'$(paste -sd "," "$store_skip_count")' '$DARK_GRAY' '$COLOR_RESET'"
 			else
 				curl --silent \
 					--request POST "localhost:$(cat "$store_fzf_port")" \
