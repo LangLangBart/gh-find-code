@@ -463,10 +463,10 @@ view_contents() {
 	# (-). Ensure there is no space between '--file-name' and the argument.
 	bat_args+=("--file-name='${file_name//"'"/\`} │ 🅻  ${line_numbers[*]:-<none>}'")
 
-	if $open_in_editor && [[ -n $EDITOR ]]; then
+	if $open_in_editor; then
 		tempfile_with_ext="${store_file_contents}_${index}_${file_name}"
 		cp "${store_file_contents}_${index}" "$tempfile_with_ext"
-		case $(basename "$EDITOR") in
+		case $(basename "${EDITOR-}") in
 			code | codium)
 				editor_args=(--reuse-window --goto "${tempfile_with_ext}:${line_numbers:-1}")
 				;;
@@ -498,13 +498,14 @@ view_contents() {
 	if $open_in_pager; then
 		bat_args+=("--paging always")
 		# The 'less' pager can move to a specific line.
-		if [[ $(basename "$PAGER") =~ ^(bat|less)$ ]]; then
+		if [[ $(basename "${PAGER-}") =~ ^(bat|less)$ ]]; then
 			# If the user has assigned the environment variable LESS with the
 			# '-F/--quit-if-one-screen' option, and explicitly set the '--pager' to 'less',
 			# the screen will not remain open for small text files that fit on the entire
-			# screen. The simplest solution is to unset the  'LESS' variable and define our
-			# own settings.
-			[[ -n $LESS ]] && unset LESS
+			# screen. The simplest solution is to unset the  'LESS' variable and define
+			# custom settings. Replace "${LESS-}" with an empty string when 'LESS' is
+			# already unset to avoid an error from 'set -o nounset'.
+			[[ -n ${LESS-} ]] && unset LESS
 			# Account for an offset of 3 lines for the bat header.
 			less_move_to_line=$((${line_numbers:-1} + 3))
 			less_args=(
