@@ -123,7 +123,7 @@ ${WHITE_BOLD}Usage${COLOR_RESET}
   gh find-code [Flags] [Search query]
 
 ${WHITE_BOLD}Flags${COLOR_RESET}
-  ${GREEN_NORMAL}-d${COLOR_RESET}  debug mode
+  ${GREEN_NORMAL}-d${COLOR_RESET}  debug mode, primarily used for identifying and resolving bugs
   ${GREEN_NORMAL}-l${COLOR_RESET}  limit the number of listed results (default ${gh_default_limit}, max 100)
   ${GREEN_NORMAL}-h${COLOR_RESET}  help
 
