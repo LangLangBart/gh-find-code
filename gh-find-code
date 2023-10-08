@@ -252,7 +252,7 @@ gh_query() {
 			# create a unique list of patterns separated by a vertical line to use in
 			# extended grep
 			patterns: ([.value.text_matches[] | .. | .text? | select(type=="string")] as $patterns_array |
-				if $patterns_array == [] then "null" else $patterns_array | unique | join("|") end)
+				if $patterns_array == [] then "__NoPatternFound__" else $patterns_array | unique | join("|") end)
 		} | [.index, .owner_repo_name, .file_name, .file_path, .patterns] | @tsv)' 2>"$store_gh_search_debug"); then
 		{
 			error_encountered=false
@@ -331,7 +331,7 @@ gh_query() {
 						} >>"${store_file_contents}_${index}"
 					fi
 					index_color="$RED_NORMAL"
-					patterns="null"
+					patterns="__NoPatternFound__"
 				fi
 
 				curl --silent \
@@ -344,7 +344,7 @@ gh_query() {
 				fi
 
 				line_numbers=()
-				[[ $patterns != "null" ]] && while IFS='' read -r matched_line; do
+				[[ $patterns != "__NoPatternFound__" ]] && while IFS='' read -r matched_line; do
 					line_numbers+=("$matched_line")
 					# '--' is used as an indicator to signify the end of command options.
 					# After this, 'sanitized_patterns' is treated as an argument, not as

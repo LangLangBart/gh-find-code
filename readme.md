@@ -136,8 +136,8 @@ export FZF_DEFAULT_OPTS="
   macOS?](https://superuser.com/questions/496090/how-to-use-alt-commands-in-a-terminal-on-os-x)
 
 ### Pager
-- If the `PAGER` environment variable is set to `less` or `bat`, when opening the destination file, it
-  will automatically scroll to the matching line found.
+- If the `PAGER` environment variable is set to `less` or `bat`, when opening the destination file,
+  it will automatically scroll to the matching line found.
 
 ---
 
