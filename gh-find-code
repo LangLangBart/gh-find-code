@@ -130,11 +130,10 @@ ${WHITE_BOLD}Flags${COLOR_RESET}
 ${WHITE_BOLD}Hotkeys${COLOR_RESET}
   ${GREEN_NORMAL}?     ${COLOR_RESET}  help
   ${GREEN_NORMAL}ctrl-b${COLOR_RESET}  open the file in the browser
-  ${GREEN_NORMAL}ctrl-e${COLOR_RESET}  open the file content in the '\$EDITOR'
+  ${GREEN_NORMAL}ctrl-e${COLOR_RESET}  open the file content in the editor
   ${GREEN_NORMAL}ctrl-o${COLOR_RESET}  open the search query in the browser
   ${GREEN_NORMAL}ctrl-r${COLOR_RESET}  reload
-  ${GREEN_NORMAL}ctrl-u${COLOR_RESET}  clear the query
-  ${GREEN_NORMAL}enter ${COLOR_RESET}  open the file in the '\$PAGER'
+  ${GREEN_NORMAL}enter ${COLOR_RESET}  open the file in the pager
   ${GREEN_NORMAL}tab   ${COLOR_RESET}  toggle the file preview
   ${GREEN_NORMAL}esc   ${COLOR_RESET}  quit
 
@@ -541,7 +540,6 @@ view_contents() {
 	--bind 'ctrl-e:execute:[[ -n {q} && -n {} ]] && open_in_editor=true view_contents {}' \
 	--bind 'ctrl-o:execute-silent:open_query_in_browser {q}' \
 	--bind 'ctrl-r:reload:gh_query {q} || true' \
-	--bind 'ctrl-u:clear-query' \
 	--bind 'enter:execute:[[ -n {q} && -n {} ]] && open_in_pager=true view_contents {}' \
 	--bind "esc:become:" \
 	--bind '?:toggle-preview+change-preview(print_help_text)+change-preview-window:~0:+1' \

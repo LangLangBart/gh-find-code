@@ -13,17 +13,17 @@ repos:
         pass_filenames: false
         files: gh-find-code
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: v4.5.0
     hooks:
       - id: end-of-file-fixer
       - id: trailing-whitespace
   - repo: https://github.com/crate-ci/typos
-    rev: v1.16.11
+    rev: v1.16.18
     hooks:
       - id: typos
         args: [--format, brief, --write-changes]
   - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.9.0.5
+    rev: v0.9.0.6
     hooks:
       # doesn't require a local version of 'shellcheck'
       - id: shellcheck
@@ -45,7 +45,7 @@ repos:
         name: markdown link check
         args: [--quiet]
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: 3.9.0
+    rev: 3.10.0
     hooks:
       - id: commitizen
         stages: [commit-msg]
