@@ -439,14 +439,13 @@ view_contents() {
 	# occasionally navigate to the incorrect line. The '--theme' option is not required
 	# due to the 'BAT_THEME' set at the beginning.
 	bat_args=(
-		$'--terminal-width ${FZF_PREVIEW_COLUMNS:-$COLUMNS}'
-		"--wrap never"
-		"--style numbers,header-filename,grid"
-		"--color always"
+		"--wrap=never"
+		"--style=numbers,header-filename,grid"
+		"--color=always"
 	)
 
 	[[ $file_extension != "null" ]] && if bat --language "$file_extension" <<<"test" >/dev/null 2>&1; then
-		bat_args+=("--language $file_extension")
+		bat_args+=("--language=${file_extension}")
 	fi
 	IFS=' ' read -ra line_numbers <"${store_file_contents}_${index}_line_numbers"
 
@@ -454,7 +453,7 @@ view_contents() {
 	# '--highlight-line' attribute can be  utilized multiple times.
 	# https://github.com/sharkdp/bat/pull/162#pullrequestreview-125072252
 	for number in "${line_numbers[@]}"; do
-		bat_args+=("--highlight-line $number")
+		bat_args+=("--highlight-line=${number}")
 	done
 	file_name=$(basename "$file_path")
 
@@ -495,7 +494,7 @@ view_contents() {
 	fi
 
 	if $open_in_pager; then
-		bat_args+=("--paging always")
+		bat_args+=("--paging=always")
 		# The 'less' pager can move to a specific line.
 		if [[ $(basename "${PAGER-}") =~ ^(bat|less)$ ]]; then
 			# If the user has assigned the environment variable LESS with the
@@ -523,10 +522,12 @@ view_contents() {
 				less_args+=("--mouse")
 			fi
 			# https://github.com/sharkdp/bat#using-a-different-pager
-			bat_args+=("--pager 'less ${less_args[*]}'")
+			bat_args+=("--pager='less ${less_args[*]}'")
 		fi
+	else
+		# Not needed in 'less', as these environment variables aren't expanded there.
+		bat_args+=("--terminal-width=${FZF_PREVIEW_COLUMNS:-$COLUMNS}")
 	fi
-
 	eval bat "${bat_args[*]}" "${store_file_contents}_${index}"
 }
 
