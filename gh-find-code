@@ -21,6 +21,7 @@ debug_mode=false
 open_in_editor=false
 open_in_pager=false
 fzf_prompt="❮❯ Code: "
+FZF_API_KEY="$(head -c 32 /dev/urandom | base64)"
 BAT_THEME=${BAT_THEME:-Monokai Extended}
 # bash is needed to use exported functions when the default shellis not bash
 SHELL=bash
@@ -33,7 +34,7 @@ gh_accept_raw="Accept: application/vnd.github.raw"
 gh_accept_text_match="Accept: application/vnd.github.text-match+json"
 gh_rest_api_version="X-GitHub-Api-Version:2022-11-28"
 # see https://github.com/junegunn/fzf/blob/master/CHANGELOG.md 'preview-border' option
-min_fzf_version="0.41.0"
+min_fzf_version="0.43.0"
 # TODO: bump version when fixed https://github.com/cli/cli/issues/7674
 min_gh_version="2.31.0"
 
@@ -201,6 +202,13 @@ fi
 
 # ===================== helper functions ==========================
 
+# send a POST request to fzf
+curl_custom() {
+	command curl --header "x-api-key: $FZF_API_KEY" \
+		--request POST "localhost:$(cat "$store_fzf_port")" \
+		--silent --data "${@:?"Missing 'data' input!"}"
+}
+
 sanitize_input() {
 	if [[ -n ${2-} ]]; then
 		# replace spaces with '+' and special characters with percent-encoded values
@@ -333,9 +341,7 @@ gh_query() {
 					patterns="__NoPatternFound__"
 				fi
 
-				curl --silent \
-					--request POST "localhost:$(cat "$store_fzf_port")" \
-					--data "transform-header:printf '%b%s of %s collected...%b' '$DARK_GRAY' \
+				curl_custom "transform-header:printf '%b%s of %s collected...%b' '$DARK_GRAY' \
 					'$index' '$((total_count > gh_user_limit ? gh_user_limit : total_count))' '$COLOR_RESET'"
 
 				if $debug_mode; then
@@ -348,9 +354,7 @@ gh_query() {
 					# '--' is used as an indicator to signify the end of command options.
 					# After this, 'sanitized_patterns' is treated as an argument, not as
 					# an option, as it may start with a dash '-'.
-				done < <(grep \
-					--extended-regexp \
-					--line-number -- \
+				done < <(grep --extended-regexp --line-number -- \
 					"$sanitized_patterns" "${store_file_contents}_${index}" 2>"${redirect_location}" | cut -d: -f1)
 				# Save additional information only if an error is encountered by grep
 				if $debug_mode && [[ -s ${store_grep_extended_debug}_${index} ]]; then
@@ -393,21 +397,15 @@ gh_query() {
 						column -ts $'\t' |
 						bat --plain --language COMMIT_EDITMSG
 				} >>"$store_gh_content_debug"
-				curl --silent \
-					--request POST "localhost:$(cat "$store_fzf_port")" \
-					--data "transform-header(printf '%bAPI failed for repos/%s/contents/%s%b' \
+				curl_custom "transform-header(printf '%bAPI failed for repos/%s/contents/%s%b' \
 					'$RED_NORMAL' '$owner_repo_name' '$file_path' '$COLOR_RESET')+change-preview:cat '$store_gh_content_debug'"
 			elif ((skip_count > 0)); then
-				curl --silent \
-					--request POST "localhost:$(cat "$store_fzf_port")" \
-					--data "reload(cat $store_input_list)+transform-header:printf '%b%s of ∑ %s%b (Skipped: %d %s [%s])%b | ? help · esc quit%b\n' \
+				curl_custom "reload(cat $store_input_list)+transform-header:printf '%b%s of ∑ %s%b (Skipped: %d %s [%s])%b | ? help · esc quit%b\n' \
 					'$YELLOW_NORMAL' '$items' '$total_count' '$RED_NORMAL' '$skip_count' \
 					'$([[ $skip_count -gt 1 ]] && echo items || echo item)' \
 					'$(paste -sd "," "$store_skip_count")' '$DARK_GRAY' '$COLOR_RESET'"
 			else
-				curl --silent \
-					--request POST "localhost:$(cat "$store_fzf_port")" \
-					--data "reload(cat $store_input_list)+transform-header:printf '%b%s of ∑ %s%b | ? help · esc quit%b\n' \
+				curl_custom "reload(cat $store_input_list)+transform-header:printf '%b%s of ∑ %s%b | ? help · esc quit%b\n' \
 					'$YELLOW_NORMAL' '$items' '$total_count' '$DARK_GRAY' '$COLOR_RESET'"
 			fi
 
@@ -415,13 +413,9 @@ gh_query() {
 
 	else
 		if [ -z "$input" ]; then
-			curl --silent \
-				--request POST "localhost:$(cat "$store_fzf_port")" \
-				--data "transform-header:printf '%bPlease enter a search query.%b' '$DARK_GRAY' '$COLOR_RESET'"
+			curl_custom "transform-header:printf '%bPlease enter a search query.%b' '$DARK_GRAY' '$COLOR_RESET'"
 		else
-			curl --silent \
-				--request POST "localhost:$(cat "$store_fzf_port")" \
-				--data "transform-header:printf '%bFailed to get the search results, check the query syntax.%b' \
+			curl_custom "transform-header:printf '%bFailed to get the search results, check the query syntax.%b' \
 				'$RED_NORMAL' '$COLOR_RESET'"
 		fi
 	fi
@@ -487,7 +481,7 @@ view_contents() {
 			echo -n "config file: "
 			bat --config-file
 			cat "$(bat --config-file)"
-			for value in "BAT_PAGER" "BAT_CONFIG_PATH" "BAT_STYLE" "BAT_THEME" "BAT_TABS" "PAGER"; do
+			for value in BAT_PAGER BAT_CONFIG_PATH BAT_STYLE BAT_THEME BAT_TABS PAGER; do
 				echo "$value = '${!value}'"
 			done
 		} >"$store_bat_debug" 2>&1
@@ -525,7 +519,7 @@ view_contents() {
 			bat_args+=("--pager='less ${less_args[*]}'")
 		fi
 	else
-		# Not needed in 'less', as these environment variables aren't expanded there.
+		# Not needed in the pager, as these environment variables aren't expanded there.
 		bat_args+=("--terminal-width=${FZF_PREVIEW_COLUMNS:-$COLUMNS}")
 	fi
 	eval bat "${bat_args[*]}" "${store_file_contents}_${index}"
@@ -545,6 +539,7 @@ view_contents() {
 	--bind "esc:become:" \
 	--bind '?:toggle-preview+change-preview(print_help_text)+change-preview-window:~0:+1' \
 	--bind 'load:change-preview([[ -n {q} && -n {} ]] && view_contents {})+change-preview-window:+{1}+3/3' \
+	--bind 'scroll-up:offset-up,scroll-down:offset-down' \
 	--bind 'tab:toggle-preview+change-preview-window(hidden|nohidden:+{1}+3/3)+change-preview:[[ -n {q} && -n {} ]] && view_contents {}' \
 	--border block \
 	--color 'bg+:233,bg:235,gutter:235,border:238,scrollbar:235' \
@@ -566,6 +561,7 @@ view_contents() {
 	--preview-window 'border-block:~3:+{1}+3/3:nohidden:right:nowrap:65%:<70(bottom:75%)' \
 	--prompt "$fzf_prompt" \
 	--query "$*" \
+	--scroll-off 3 \
 	--scrollbar '│▐' \
 	--separator '' \
 	--unicode \
