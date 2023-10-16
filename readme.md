@@ -48,16 +48,17 @@ gh find-code [Flags] [Search query]
 | `-l`  | limit the number of listed results (default 30, max 100)      |
 | `-h`  | help                                                          |
 
-| Key Bindings fzf            | Description                          |
-| --------------------------- | ------------------------------------ |
-| <kbd>?</kbd>                | help                                 |
-| <kbd>ctrl</kbd><kbd>b</kbd> | open the file in the browser         |
-| <kbd>ctrl</kbd><kbd>e</kbd> | open the file content in the editor  |
-| <kbd>ctrl</kbd><kbd>o</kbd> | open the search query in the browser |
-| <kbd>ctrl</kbd><kbd>r</kbd> | reload                               |
-| <kbd>enter</kbd>            | open the file in the pager           |
-| <kbd>tab</kbd>              | toggle the file preview              |
-| <kbd>esc</kbd>              | quit                                 |
+| Key Bindings fzf            | Description                                                        |
+| --------------------------- | ------------------------------------------------------------------ |
+| <kbd>?</kbd>                | help                                                               |
+| <kbd>ctrl</kbd><kbd>b</kbd> | open the file in the browser                                       |
+| <kbd>ctrl</kbd><kbd>e</kbd> | open the file content in the editor                                |
+| <kbd>ctrl</kbd><kbd>o</kbd> | open the search query in the browser                               |
+| <kbd>ctrl</kbd><kbd>p</kbd> | quit and copy the last query to the clipboard using 'pbcopy' macOS |
+| <kbd>ctrl</kbd><kbd>r</kbd> | reload                                                             |
+| <kbd>enter</kbd>            | open the file in the pager                                         |
+| <kbd>tab</kbd>              | toggle the file preview                                            |
+| <kbd>esc</kbd>              | quit                                                               |
 
 ---
 
