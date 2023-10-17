@@ -133,7 +133,7 @@ ${WHITE_BOLD}Hotkeys${COLOR_RESET}
   ${GREEN_NORMAL}ctrl-b${COLOR_RESET}  open the file in the browser
   ${GREEN_NORMAL}ctrl-e${COLOR_RESET}  open the file content in the editor
   ${GREEN_NORMAL}ctrl-o${COLOR_RESET}  open the search query in the browser
-  ${GREEN_NORMAL}ctrl-p${COLOR_RESET}  quit and copy the last query to the clipboard using 'pbcopy' macOS
+  ${GREEN_NORMAL}ctrl-p${COLOR_RESET}  copy the current query to the clipboard using 'pbcopy' macOS
   ${GREEN_NORMAL}ctrl-r${COLOR_RESET}  reload
   ${GREEN_NORMAL}enter ${COLOR_RESET}  open the file in the pager
   ${GREEN_NORMAL}tab   ${COLOR_RESET}  toggle the file preview
@@ -235,10 +235,12 @@ open_query_in_browser() {
 	fi
 }
 
-last_action() {
-	#  copies the last query to the clipboard
+copy_action() {
+	#  copies the current query to the clipboard
 	if command -v pbcopy >/dev/null && [ -n "$1" ]; then
 		printf "%q" "$1" | pbcopy
+	else
+		play_notification_sound
 	fi
 }
 
@@ -542,7 +544,7 @@ view_contents() {
 	--bind 'ctrl-b:execute-silent:gh browse --repo {4} {5}:{1}' \
 	--bind 'ctrl-e:execute:[[ -n {q} && -n {} ]] && open_in_editor=true view_contents {}' \
 	--bind 'ctrl-o:execute-silent:open_query_in_browser {q}' \
-	--bind 'ctrl-p:become:last_action {q}' \
+	--bind 'ctrl-p:execute:copy_action {q}' \
 	--bind 'ctrl-r:reload:gh_query {q} || true' \
 	--bind 'enter:execute:[[ -n {q} && -n {} ]] && open_in_pager=true view_contents {}' \
 	--bind 'esc:become:' \
