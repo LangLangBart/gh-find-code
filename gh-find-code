@@ -35,8 +35,12 @@ gh_accept_text_match="Accept: application/vnd.github.text-match+json"
 gh_rest_api_version="X-GitHub-Api-Version:2022-11-28"
 # see https://github.com/junegunn/fzf/blob/master/CHANGELOG.md 'preview-border' option
 min_fzf_version="0.43.0"
-# TODO: bump version when fixed https://github.com/cli/cli/issues/7674
-min_gh_version="2.31.0"
+# a bug with 'gh-browse' with relative paths was fixed
+# https://github.com/cli/cli/issues/7674
+min_gh_version="2.37.0"
+# requires 'urllib.parse'
+# https://docs.python.org/3/library/urllib.parse.html
+min_python_version="3.0.0"
 
 # define colors
 COLOR_RESET='\033[0m'
@@ -186,6 +190,7 @@ done
 
 check_version fzf "$min_fzf_version"
 check_version gh "$min_gh_version"
+check_version python "$min_python_version"
 
 # Verify if there are at least two spaces between columns. The delimiter in 'fzf' is set to
 # '\t' or '\s\s+' to separate fields. By default, the 'column' command should separate any
