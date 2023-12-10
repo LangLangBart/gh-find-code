@@ -25,6 +25,8 @@ FZF_API_KEY="$(head -c 32 /dev/urandom | base64)"
 BAT_THEME=${BAT_THEME:-Monokai Extended}
 # bash is needed to use exported functions when the default shellis not bash
 SHELL=bash
+# Used for the '--history' flag in fzf to store my commands and retrieve them when necessary.
+gh_find_code_history="${BASH_SOURCE%/*}/gh_find_code_history.txt"
 # A cached version will be used before a new one is pulled.
 gh_default_cache_time="1h"
 gh_default_limit=30
@@ -71,6 +73,9 @@ cleanup() {
 			fi
 		done
 	fi
+	# In case of duplicates, only the most recent entry is preserved. Instead of 'tail -r', 'tac'
+	# can be used, but it requires 'coreutils'.
+	[[ -f $gh_find_code_history ]] && tail -r "$gh_find_code_history" | awk '!x[$0]++' | tail -r | tee "$gh_find_code_history" >/dev/null
 }
 
 die() {
@@ -136,8 +141,10 @@ ${WHITE_BOLD}Hotkeys${COLOR_RESET}
   ${GREEN_NORMAL}?     ${COLOR_RESET}  help
   ${GREEN_NORMAL}ctrl-b${COLOR_RESET}  open the file in the browser
   ${GREEN_NORMAL}ctrl-e${COLOR_RESET}  open the file content in the editor
+  ${GREEN_NORMAL}ctrl-h${COLOR_RESET}  display the history commands
+  ${GREEN_NORMAL}ctrl-n${COLOR_RESET}  next history command
   ${GREEN_NORMAL}ctrl-o${COLOR_RESET}  open the search query in the browser
-  ${GREEN_NORMAL}ctrl-p${COLOR_RESET}  copy the current query to the clipboard using 'pbcopy' macOS
+  ${GREEN_NORMAL}ctrl-p${COLOR_RESET}  previous history command
   ${GREEN_NORMAL}ctrl-r${COLOR_RESET}  reload
   ${GREEN_NORMAL}enter ${COLOR_RESET}  open the file in the pager
   ${GREEN_NORMAL}tab   ${COLOR_RESET}  toggle the file preview
@@ -240,12 +247,14 @@ open_query_in_browser() {
 	fi
 }
 
-copy_action() {
-	#  copies the current query to the clipboard
-	if command -v pbcopy >/dev/null && [ -n "$1" ]; then
-		printf "%q" "$1" | pbcopy
+view_history_commands() {
+	if [ -s "$gh_find_code_history" ]; then
+		bat --color=always \
+			--terminal-width="${FZF_PREVIEW_COLUMNS:-$COLUMNS}" \
+			--file-name="${gh_find_code_history##*/} │ Hotkeys: ctrl-n (next) / ctrl-p (previous)" \
+			--style=numbers,header-filename,grid "$gh_find_code_history"
 	else
-		play_notification_sound
+		echo 'No history entries yet. Check back on your next run.'
 	fi
 }
 
@@ -548,8 +557,8 @@ view_contents() {
 	--bind "change:first+reload:sleep 0.65; gh_query {q} || true" \
 	--bind 'ctrl-b:execute-silent:gh browse --repo {4} {5}:{1}' \
 	--bind 'ctrl-e:execute:[[ -n {q} && -n {} ]] && open_in_editor=true view_contents {}' \
+	--bind "ctrl-h:change-preview(view_history_commands)+change-preview-window:~0:+1" \
 	--bind 'ctrl-o:execute-silent:open_query_in_browser {q}' \
-	--bind 'ctrl-p:execute:copy_action {q}' \
 	--bind 'ctrl-r:reload:gh_query {q} || true' \
 	--bind 'enter:execute:[[ -n {q} && -n {} ]] && open_in_pager=true view_contents {}' \
 	--bind 'esc:become:' \
@@ -568,6 +577,8 @@ view_contents() {
 	--ellipsis '' \
 	--height=100% \
 	--header-lines 0 \
+	--history "$gh_find_code_history" \
+	--history-size 30 \
 	--info hidden \
 	--layout reverse \
 	--listen \
