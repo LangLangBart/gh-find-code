@@ -48,17 +48,19 @@ gh find-code [Flags] [Search query]
 | `-l`  | limit the number of listed results (default 30, max 100)      |
 | `-h`  | help                                                          |
 
-| Key Bindings fzf            | Description                                                  |
-| --------------------------- | ------------------------------------------------------------ |
-| <kbd>?</kbd>                | help                                                         |
-| <kbd>ctrl</kbd><kbd>b</kbd> | open the file in the browser                                 |
-| <kbd>ctrl</kbd><kbd>e</kbd> | open the file content in the editor                          |
-| <kbd>ctrl</kbd><kbd>o</kbd> | open the search query in the browser                         |
-| <kbd>ctrl</kbd><kbd>p</kbd> | copy the current query to the clipboard using 'pbcopy' macOS |
-| <kbd>ctrl</kbd><kbd>r</kbd> | reload                                                       |
-| <kbd>enter</kbd>            | open the file in the pager                                   |
-| <kbd>tab</kbd>              | toggle the file preview                                      |
-| <kbd>esc</kbd>              | quit                                                         |
+| Key Bindings fzf            | Description                          |
+| --------------------------- | ------------------------------------ |
+| <kbd>?</kbd>                | help                                 |
+| <kbd>ctrl</kbd><kbd>b</kbd> | open the file in the browser         |
+| <kbd>ctrl</kbd><kbd>e</kbd> | open the file content in the editor  |
+| <kbd>ctrl</kbd><kbd>e</kbd> | display the history commands         |
+| <kbd>ctrl</kbd><kbd>n</kbd> | next history command                 |
+| <kbd>ctrl</kbd><kbd>o</kbd> | open the search query in the browser |
+| <kbd>ctrl</kbd><kbd>p</kbd> | previous history command             |
+| <kbd>ctrl</kbd><kbd>r</kbd> | reload                               |
+| <kbd>enter</kbd>            | open the file in the pager           |
+| <kbd>tab</kbd>              | toggle the file preview              |
+| <kbd>esc</kbd>              | quit                                 |
 
 ---
 
@@ -134,6 +136,12 @@ export FZF_DEFAULT_OPTS="
   details.
 - NOTE: [How to use ALT commands in a terminal on
   macOS?](https://superuser.com/questions/496090/how-to-use-alt-commands-in-a-terminal-on-os-x)
+
+### History
+- The `gh_find_code_history.txt` file stores completed commands. These commands can be retrieved
+  using the shortcut keys <kbd>⌃ Control</kbd> + <kbd>N</kbd> (for next history). All commands can
+  be viewed with <kbd>⌃ Control</kbd> + <kbd>H</kbd>. In case of duplicates, only the most recent
+  entry is preserved. The maximum number of command entries stored is 30.
 
 ### Pager
 - If the `PAGER` environment variable is set to `less` or `bat`, when opening the destination file,
