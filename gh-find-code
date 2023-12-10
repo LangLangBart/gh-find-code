@@ -140,12 +140,12 @@ ${WHITE_BOLD}Flags${COLOR_RESET}
 ${WHITE_BOLD}Hotkeys${COLOR_RESET}
   ${GREEN_NORMAL}?     ${COLOR_RESET}  help
   ${GREEN_NORMAL}ctrl-b${COLOR_RESET}  open the file in the browser
-  ${GREEN_NORMAL}ctrl-e${COLOR_RESET}  open the file content in the editor
   ${GREEN_NORMAL}ctrl-h${COLOR_RESET}  display the history commands
   ${GREEN_NORMAL}ctrl-n${COLOR_RESET}  next history command
-  ${GREEN_NORMAL}ctrl-o${COLOR_RESET}  open the search query in the browser
+  ${GREEN_NORMAL}ctrl-o${COLOR_RESET}  open the file content in the editor
   ${GREEN_NORMAL}ctrl-p${COLOR_RESET}  previous history command
   ${GREEN_NORMAL}ctrl-r${COLOR_RESET}  reload
+  ${GREEN_NORMAL}ctrl-t${COLOR_RESET}  open the search query in the browser
   ${GREEN_NORMAL}enter ${COLOR_RESET}  open the file in the pager
   ${GREEN_NORMAL}tab   ${COLOR_RESET}  toggle the file preview
   ${GREEN_NORMAL}esc   ${COLOR_RESET}  quit
@@ -556,10 +556,10 @@ view_contents() {
 	--bind $'start:execute-silent(echo $FZF_PORT > $store_fzf_port)+reload:gh_query {q}' \
 	--bind "change:first+reload:sleep 0.65; gh_query {q} || true" \
 	--bind 'ctrl-b:execute-silent:gh browse --repo {4} {5}:{1}' \
-	--bind 'ctrl-e:execute:[[ -n {q} && -n {} ]] && open_in_editor=true view_contents {}' \
 	--bind "ctrl-h:change-preview(view_history_commands)+change-preview-window:~0:+1" \
-	--bind 'ctrl-o:execute-silent:open_query_in_browser {q}' \
+	--bind 'ctrl-o:execute:[[ -n {q} && -n {} ]] && open_in_editor=true view_contents {}' \
 	--bind 'ctrl-r:reload:gh_query {q} || true' \
+	--bind 'ctrl-t:execute-silent:open_query_in_browser {q}' \
 	--bind 'enter:execute:[[ -n {q} && -n {} ]] && open_in_pager=true view_contents {}' \
 	--bind 'esc:become:' \
 	--bind '?:toggle-preview+change-preview(print_help_text)+change-preview-window:~0:+1' \

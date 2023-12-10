@@ -52,12 +52,12 @@ gh find-code [Flags] [Search query]
 | --------------------------- | ------------------------------------ |
 | <kbd>?</kbd>                | help                                 |
 | <kbd>ctrl</kbd><kbd>b</kbd> | open the file in the browser         |
-| <kbd>ctrl</kbd><kbd>e</kbd> | open the file content in the editor  |
-| <kbd>ctrl</kbd><kbd>e</kbd> | display the history commands         |
+| <kbd>ctrl</kbd><kbd>h</kbd> | display the history commands         |
 | <kbd>ctrl</kbd><kbd>n</kbd> | next history command                 |
-| <kbd>ctrl</kbd><kbd>o</kbd> | open the search query in the browser |
+| <kbd>ctrl</kbd><kbd>o</kbd> | open the file content in the editor  |
 | <kbd>ctrl</kbd><kbd>p</kbd> | previous history command             |
 | <kbd>ctrl</kbd><kbd>r</kbd> | reload                               |
+| <kbd>ctrl</kbd><kbd>t</kbd> | open the search query in the browser |
 | <kbd>enter</kbd>            | open the file in the pager           |
 | <kbd>tab</kbd>              | toggle the file preview              |
 | <kbd>esc</kbd>              | quit                                 |
