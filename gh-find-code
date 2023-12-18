@@ -595,9 +595,8 @@ view_history_commands() {
 	--bind 'enter:execute:[[ -n {q} && -n {} ]] && open_in_pager=true view_contents {}' \
 	--bind 'esc:become:' \
 	--bind '?:change-preview(print_help_text)+change-preview-window:~0:+1' \
-	--bind 'load:change-preview([[ -n {q} && -n {} ]] && view_contents {})+change-preview-window:+{1}+3/3' \
 	--bind 'scroll-up:offset-up,scroll-down:offset-down' \
-	--bind 'tab:change-preview-window(hidden|nohidden:+{1}+3/3)+change-preview:[[ -n {q} && -n {} ]] && view_contents {}' \
+	--bind 'tab:change-preview([[ -n {q} && -n {} ]] && view_contents {})+change-preview-window:hidden:<70(hidden)|+{1}+3/3' \
 	--border block \
 	--color 'bg+:233,bg:235,gutter:235,border:238,scrollbar:235' \
 	--color 'preview-bg:234,preview-border:236,preview-scrollbar:237' \
