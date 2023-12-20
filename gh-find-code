@@ -75,7 +75,8 @@ cleanup() {
 	fi
 	# In case of duplicates, only the most recent entry is preserved. Instead of 'tail -r', 'tac'
 	# can be used, but it requires 'coreutils'.
-	[[ -f $gh_find_code_history ]] && tail -r "$gh_find_code_history" | awk '!x[$0]++' | tail -r | tee "$gh_find_code_history" >/dev/null
+	[[ -f $gh_find_code_history ]] && tail -r "$gh_find_code_history" |
+		awk '!x[$0]++' | tail -r | tee "$gh_find_code_history" >/dev/null
 }
 
 die() {
@@ -542,10 +543,10 @@ view_contents() {
 
 get_history_count() {
 	if [ ! -s "$store_history_counter" ]; then
-		# Initialization is set to +1 to prevent any highlighting. Highlighting only starts when
+		# Initialization is set to zero to prevent any highlighting. Highlighting only starts when
 		# 'ctrl-p' or 'ctrl-n' are pressed and are within the range of 1 and the total line count of
 		# the gh_find_code_history.txt file.
-		echo $(($(sed -n '$=' "$gh_find_code_history") + 1))
+		echo 0
 	else
 		cat "$store_history_counter"
 	fi
@@ -553,16 +554,16 @@ get_history_count() {
 
 next() {
 	counter=$(get_history_count)
-	if [[ $counter -le $(sed -n '$=' "$gh_find_code_history") ]]; then
-		((counter++))
+	if [[ $counter -gt 0 ]]; then
+		((counter--))
 		echo "$counter" >"$store_history_counter"
 	fi
 }
 
 previous() {
 	counter=$(get_history_count)
-	if [[ $counter -gt 1 ]]; then
-		((counter--))
+	if [[ $counter -lt $(sed -n '$=' "$gh_find_code_history") ]]; then
+		((counter++))
 		echo "$counter" >"$store_history_counter"
 	fi
 }
@@ -570,11 +571,13 @@ previous() {
 view_history_commands() {
 	counter=$(get_history_count)
 	if [ -s "$gh_find_code_history" ]; then
+		header_info=$(printf "%s (%s/%s) │ sort desc (↓) │ ^n (next) / ^p (previous)" \
+			"${gh_find_code_history##*/}" "$counter" "$(sed -n '$=' "$gh_find_code_history")")
 		bat --color=always \
 			--highlight-line="$counter" \
 			--terminal-width="${FZF_PREVIEW_COLUMNS:-$COLUMNS}" \
-			--file-name="${gh_find_code_history##*/} │ Hotkeys: ctrl-n (next) / ctrl-p (previous)" \
-			--style=numbers,header-filename,grid "$gh_find_code_history"
+			--file-name="$header_info" \
+			--style=numbers,header-filename,grid <<<"$(tail -r "$gh_find_code_history")"
 	else
 		echo 'No history entries yet. Check back on your next run.'
 	fi
