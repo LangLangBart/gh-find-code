@@ -355,8 +355,9 @@ gh_query() {
 					patterns="__NoPatternFound__"
 				fi
 
-				curl_custom "transform-header:printf '%b%s of %s collected...%b' '$DARK_GRAY' \
-					'$index' '$((total_count > gh_user_limit ? gh_user_limit : total_count))' '$COLOR_RESET'"
+				curl_custom "transform-header:printf '%b%s/%s of %s collected...%b' '$DARK_GRAY' \
+					'$index' '$((total_count > gh_user_limit ? gh_user_limit : total_count))' \
+					'$total_count' '$COLOR_RESET'"
 
 				if $debug_mode; then
 					redirect_location="${store_grep_extended_debug}_${index}"
