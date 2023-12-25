@@ -146,7 +146,7 @@ ${WHITE_BOLD}Hotkeys${COLOR_RESET}
   ${GREEN_NORMAL}ctrl-n${COLOR_RESET}  next history command
   ${GREEN_NORMAL}ctrl-o${COLOR_RESET}  open the file content in the editor
   ${GREEN_NORMAL}ctrl-p${COLOR_RESET}  previous history command
-  ${GREEN_NORMAL}ctrl-r${COLOR_RESET}  reload
+  ${GREEN_NORMAL}ctrl-r${COLOR_RESET}  reload with 100 results
   ${GREEN_NORMAL}ctrl-t${COLOR_RESET}  open the search query in the browser
   ${GREEN_NORMAL}enter ${COLOR_RESET}  open the file in the pager
   ${GREEN_NORMAL}tab   ${COLOR_RESET}  toggle the file preview
@@ -594,7 +594,7 @@ view_history_commands() {
 	--bind "ctrl-n:execute-silent(next)+refresh-preview+next-history" \
 	--bind "ctrl-p:execute-silent(previous)+refresh-preview+prev-history" \
 	--bind 'ctrl-o:execute:[[ -n {q} && -n {} ]] && open_in_editor=true view_contents {}' \
-	--bind 'ctrl-r:reload:gh_query {q} || true' \
+	--bind 'ctrl-r:reload:gh_user_limit=100;gh_query {q} || true' \
 	--bind 'ctrl-t:execute-silent:open_query_in_browser {q}' \
 	--bind 'enter:execute:[[ -n {q} && -n {} ]] && open_in_pager=true view_contents {}' \
 	--bind 'esc:become:' \
@@ -613,7 +613,7 @@ view_history_commands() {
 	--height=100% \
 	--header-lines 0 \
 	--history "$gh_find_code_history" \
-	--history-size 30 \
+	--history-size 100 \
 	--info hidden \
 	--layout reverse \
 	--listen \
