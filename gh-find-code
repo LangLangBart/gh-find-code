@@ -366,12 +366,21 @@ gh_query() {
 
 				line_numbers=()
 				[[ $patterns != "__NoPatternFound__" ]] && while IFS='' read -r matched_line; do
-					line_numbers+=("$matched_line")
-					# '--' is used as an indicator to signify the end of command options.
-					# After this, 'sanitized_patterns' is treated as an argument, not as
-					# an option, as it may start with a dash '-'.
-				done < <(grep --extended-regexp --line-number -- \
-					"$sanitized_patterns" "${store_file_contents}_${index}" 2>"${redirect_location}" | cut -d: -f1)
+					# Ensure only valid numbers are included
+					if [[ $matched_line =~ ^[0-9]+ ]]; then
+						line_numbers+=("$matched_line")
+					else
+						{
+							echo "The matched line is not a number."
+							echo "matched_line: '$matched_line'"
+						} >>"${store_grep_extended_debug}_${index}"
+					fi
+					# Use the '--text' flag, as grep will simply print 'Binary file … matches' if
+					# the file contains binary characters. It won't even throw an error.
+					# https://unix.stackexchange.com/questions/19907
+				done < <(grep --extended-regexp --line-number --text \
+					--regexp="$sanitized_patterns" -- \
+					"${store_file_contents}_${index}" 2>"${redirect_location}" | cut -d: -f1)
 				# Save additional information only if an error is encountered by grep
 				if $debug_mode && [[ -s ${store_grep_extended_debug}_${index} ]]; then
 					{
