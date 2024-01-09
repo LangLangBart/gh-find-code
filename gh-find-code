@@ -34,7 +34,7 @@ gh_accept_raw="Accept: application/vnd.github.raw"
 gh_accept_text_match="Accept: application/vnd.github.text-match+json"
 gh_rest_api_version="X-GitHub-Api-Version:2022-11-28"
 # see https://github.com/junegunn/fzf/blob/master/CHANGELOG.md 'preview-border' option
-min_fzf_version="0.43.0"
+min_fzf_version="0.45.0"
 # a bug with 'gh-browse' with relative paths was fixed
 # https://github.com/cli/cli/issues/7674
 min_gh_version="2.37.0"
@@ -59,10 +59,10 @@ DARK_GRAY='\033[0;90m'
 
 cleanup() {
 	$debug_mode && printf "%bDebug mode was ON, the following files weren't deleted.%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
-	if [ -f "$store_pids" ]; then
-		while read -r pid; do
-			command kill "$pid" 2>/dev/null
-		done <"$store_pids"
+	if [ -f "$store_ppid" ]; then
+		command awk '!x[$0]++' "$store_ppid" | while read -r ppid; do
+			command kill "$ppid" 2>/dev/null
+		done
 	fi
 	command rm -rf "$scratch_directory" 2>/dev/null
 	if ! $debug_mode; then
@@ -103,7 +103,7 @@ store_fzf_port="${scratch_directory}/fzf_port"
 store_file_contents="${scratch_directory}/file_content"
 store_skip_count="${scratch_directory}/skip_count"
 store_history_counter="${scratch_directory}/history_counter"
-store_pids="${scratch_directory}/pids"
+store_ppid="${scratch_directory}/ppid"
 
 # Debug directory
 debug_directory=$(mktemp -dt "$date_prefix.gh_find_code.debug") || die "Can't create debug directory."
@@ -283,12 +283,16 @@ gh_query() {
 			patterns: ([.value.text_matches[] | .. | .text? | select(type=="string")] as $patterns_array |
 				if $patterns_array == [] then "__NoPatternFound__" else $patterns_array | unique | join("|") end)
 		} | [.index, .owner_repo_name, .file_name, .file_path, .patterns] | @tsv)' 2>"$store_gh_search_debug"); then
+		echo "${PPID-}" >>"$store_ppid"
 		({
 			# first line
 			IFS=' ' read -r items total_count
 
 			while IFS=$'\t' read -r index owner_repo_name file_name file_path patterns; do
-				! command kill -0 "$PPID" 2>/dev/null && break
+				# https://github.com/junegunn/fzf/issues/398
+				# Tested with 'sudo opensnoop -n bash', without a break check it keeps going through
+				# the data list. Check if the parent process is still running or kill the loop
+				! kill -0 "$PPID" 2>/dev/null && break
 				# These sanitizations are necessary because file paths may contain special
 				# characters, such as hashtags (#).
 				sanitized_owner_repo_name=$(sanitize_input "$owner_repo_name")
@@ -314,8 +318,6 @@ gh_query() {
 				) &
 			done
 		} <<<"$data") &
-		echo "${PPID-}" >>"$store_pids"
-
 		{
 			error_encountered=false
 			skip_count=0
@@ -328,12 +330,7 @@ gh_query() {
 			IFS=' ' read -r items total_count
 			# listed items
 			while IFS=$'\t' read -r index owner_repo_name file_name file_path patterns; do
-				# https://github.com/junegunn/fzf/issues/398
-				# TODO: Improve the solution for terminating this while loop, when the script is exited.
-				# Tested with 'sudo opensnoop -n bash', without a break check it
-				# keeps going through the data list.
-				# Check if the parent process is still running or kill the loop
-				! command kill -0 "$PPID" 2>/dev/null && break
+				! kill -0 "$PPID" 2>/dev/null && break
 				index_color="$WHITE_NORMAL"
 				file_extension="null"
 				# Check if the file has a file extension and assign it.
@@ -356,14 +353,14 @@ gh_query() {
 				sanitized_patterns=$(command sed -e 's/[][?*+.\/$^(){}]/\\&/g' <<<"$patterns")
 				SECONDS=0
 				while :; do
-					! command kill -0 "$PPID" 2>/dev/null && break
+					! kill -0 "$PPID" 2>/dev/null && break
 					if [ -s "${store_file_contents}_${index}" ]; then
 						cp "${store_file_contents}_${index}" "${store_file_contents}_${index}_fetched"
 						: >"${store_file_contents}_${index}"
 						break
 					fi
 					command sleep 0.1
-					if ((SECONDS > 2)); then
+					if ((SECONDS >= 2)); then
 						# There could be several reasons why pulling content might fail. One
 						# reason could be outdated cached search results from GitHub. For
 						# example, a user might have deleted their account, but their content
