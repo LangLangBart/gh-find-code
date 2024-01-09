@@ -13,10 +13,8 @@ set -o allexport -o errexit -o nounset -o pipefail
 # --jq '[.data.__type.enumValues[].name] | join(", ")'
 
 # TODO: add tests
-# TODO: experiment with 'parallel' to speed things up
 
 # ====================== set variables =======================
-
 debug_mode=false
 open_in_editor=false
 open_in_pager=false
@@ -61,22 +59,28 @@ DARK_GRAY='\033[0;90m'
 
 cleanup() {
 	$debug_mode && printf "%bDebug mode was ON, the following files weren't deleted.%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
-	rm -rf "$scratch_directory" 2>/dev/null
+	if [ -f "$store_pids" ]; then
+		while read -r pid; do
+			command kill "$pid" 2>/dev/null
+		done <"$store_pids"
+	fi
+	command rm -rf "$scratch_directory" 2>/dev/null
 	if ! $debug_mode; then
-		rm -rf "$debug_directory" 2>/dev/null
+		command rm -rf "$debug_directory" 2>/dev/null
 	else
 		find "${debug_directory}/"* 2>/dev/null | while read -r matching_file; do
 			if [[ ! -s $matching_file ]]; then
-				rm -f "$matching_file"
+				command rm -f "$matching_file"
 			else
-				printf "\t%s\n" "$matching_file"
+				command printf "\t%s\n" "$matching_file"
 			fi
 		done
 	fi
+
 	# In case of duplicates, only the most recent entry is preserved. Instead of 'tail -r', 'tac'
 	# can be used, but it requires 'coreutils'.
-	[[ -f $gh_find_code_history ]] && tail -r "$gh_find_code_history" |
-		awk '!x[$0]++' | tail -r | tee "$gh_find_code_history" >/dev/null
+	[[ -f $gh_find_code_history ]] && command tail -r "$gh_find_code_history" |
+		command awk '!x[$0]++' | command tail -r | command tee "$gh_find_code_history" >/dev/null
 }
 
 die() {
@@ -99,6 +103,7 @@ store_fzf_port="${scratch_directory}/fzf_port"
 store_file_contents="${scratch_directory}/file_content"
 store_skip_count="${scratch_directory}/skip_count"
 store_history_counter="${scratch_directory}/history_counter"
+store_pids="${scratch_directory}/pids"
 
 # Debug directory
 debug_directory=$(mktemp -dt "$date_prefix.gh_find_code.debug") || die "Can't create debug directory."
@@ -112,7 +117,9 @@ check_version() {
 	local tool=$1 threshold=$2 on_error=${3:-die}
 	local user_version
 	declare -a ver_parts threshold_parts
-	user_version=$($tool --version 2>&1 | grep -Eo '[0-9]+(\.[0-9]+)*' | sed q)
+	user_version=$(command $tool --version 2>&1 |
+		command grep --extended-regexp --only-matching '[0-9]+(\.[0-9]+)*' |
+		command sed q)
 
 	IFS='.' read -ra ver_parts <<<"$user_version"
 	IFS='.' read -ra threshold_parts <<<"$threshold"
@@ -192,7 +199,7 @@ shift "$((OPTIND - 1))"
 # ====================== check requirements =======================
 
 for tool in bat column curl fzf gh python; do
-	if ! type -p $tool >/dev/null; then
+	if ! command -v $tool >/dev/null; then
 		die "'$tool' was not found."
 	fi
 done
@@ -211,7 +218,7 @@ check_version python "$min_python_version"
 # https://github.com/util-linux/util-linux/issues/1699#issuecomment-1140972918
 # https://man7.org/linux/man-pages/man1/column.1.html
 
-if [[ $(column -t <<<"A Z" 2>/dev/null) != *"  "* ]]; then
+if [[ $(command column -t <<<"A Z" 2>/dev/null) != *"  "* ]]; then
 	die "Your 'column' command does not separate columns with at least two spaces. Please report this issue, stating your operating system and 'column' version."
 fi
 
@@ -227,23 +234,23 @@ curl_custom() {
 sanitize_input() {
 	if [[ -n ${2-} ]]; then
 		# replace spaces with '+' and special characters with percent-encoded values
-		python -c "import urllib.parse; print(urllib.parse.quote_plus('''$1'''))"
+		command python -c "import urllib.parse; print(urllib.parse.quote_plus('''$1'''))"
 	else
 		# replaces spaces with '%20' and special characters with percent-encoded values
-		python -c "import urllib.parse; print(urllib.parse.quote('''$1'''))"
+		command python -c "import urllib.parse; print(urllib.parse.quote('''$1'''))"
 	fi
 }
 
 play_notification_sound() {
 	# natively installed audio player for macOS, or fall back to the ASCII bell character
-	afplay /System/Library/Sounds/Basso.aiff 2>/dev/null || echo -e "\a"
+	command afplay /System/Library/Sounds/Basso.aiff 2>/dev/null || echo -e "\a"
 }
 
 open_query_in_browser() {
 	local sanitized_query
 	sanitized_query=$(sanitize_input "$1" true)
 	if [ -n "$sanitized_query" ]; then
-		python -m webbrowser "https://github.com/search?q=${sanitized_query}&type=code"
+		command python -m webbrowser "https://github.com/search?q=${sanitized_query}&type=code"
 	else
 		play_notification_sound
 	fi
@@ -256,7 +263,7 @@ gh_query() {
 	local file_extension sanitized_patterns sanitized_owner_repo_name sanitized_file_path
 	local matched_line error_encountered redirect_location index_color
 	declare -a line_numbers
-	if data=$(gh api search/code \
+	if data=$(command gh api search/code \
 		--method GET \
 		--cache "$gh_default_cache_time" \
 		--header "$gh_accept_json" \
@@ -276,6 +283,39 @@ gh_query() {
 			patterns: ([.value.text_matches[] | .. | .text? | select(type=="string")] as $patterns_array |
 				if $patterns_array == [] then "__NoPatternFound__" else $patterns_array | unique | join("|") end)
 		} | [.index, .owner_repo_name, .file_name, .file_path, .patterns] | @tsv)' 2>"$store_gh_search_debug"); then
+		({
+			# first line
+			IFS=' ' read -r items total_count
+
+			while IFS=$'\t' read -r index owner_repo_name file_name file_path patterns; do
+				! command kill -0 "$PPID" 2>/dev/null && break
+				# These sanitizations are necessary because file paths may contain special
+				# characters, such as hashtags (#).
+				sanitized_owner_repo_name=$(sanitize_input "$owner_repo_name")
+				sanitized_file_path=$(sanitize_input "$file_path")
+				command cp "$store_file_contents" "${store_file_contents}_${index}"
+				command cp "$store_file_contents" "${store_file_contents}_${index}_line_numbers"
+				(
+					if command gh api "repos/${sanitized_owner_repo_name}/contents/${sanitized_file_path}" \
+						--cache "$gh_default_cache_time" \
+						--header "$gh_accept_raw" \
+						--header "$gh_rest_api_version" \
+						>"${store_file_contents}_${index}" \
+						2>"$store_gh_content_debug"; then
+						:
+					elif command gh api "https://raw.githubusercontent.com/${sanitized_owner_repo_name}/HEAD/${sanitized_file_path}" \
+						--cache "$gh_default_cache_time" \
+						--header "$gh_accept_raw" \
+						--header "$gh_rest_api_version" \
+						>"${store_file_contents}_${index}" \
+						2>"$store_gh_content_debug"; then
+						:
+					fi
+				) &
+			done
+		} <<<"$data") &
+		echo "${PPID-}" >>"$store_pids"
+
 		{
 			error_encountered=false
 			skip_count=0
@@ -286,7 +326,6 @@ gh_query() {
 			: >"$store_skip_count"
 			# first line
 			IFS=' ' read -r items total_count
-
 			# listed items
 			while IFS=$'\t' read -r index owner_repo_name file_name file_path patterns; do
 				# https://github.com/junegunn/fzf/issues/398
@@ -294,7 +333,7 @@ gh_query() {
 				# Tested with 'sudo opensnoop -n bash', without a break check it
 				# keeps going through the data list.
 				# Check if the parent process is still running or kill the loop
-				! kill -0 "$PPID" 2>/dev/null && break
+				! command kill -0 "$PPID" 2>/dev/null && break
 				index_color="$WHITE_NORMAL"
 				file_extension="null"
 				# Check if the file has a file extension and assign it.
@@ -303,59 +342,49 @@ gh_query() {
 				fi
 				# This covers special cases where syntax highlighting requires a leading
 				# dot, such as filenames like 'zshrc', '.zshrc' or 'macos.zshrc'
-				if bat --list-languages --color=never | grep --quiet --word-regexp "\.${file_extension}"; then
+				if command bat --list-languages --color=never |
+					command grep --quiet --word-regexp "\.${file_extension}"; then
 					file_extension=".${file_extension}"
-				elif bat --list-languages --color=never | grep --quiet --word-regexp "\.${file_name}"; then
+				elif command bat --list-languages --color=never |
+					command grep --quiet --word-regexp "\.${file_name}"; then
 					file_extension=".${file_name}"
 				fi
-
-				# These sanitizations are necessary because file paths may contain special
-				# characters, such as hashtags (#).
-				sanitized_owner_repo_name=$(sanitize_input "$owner_repo_name")
-				sanitized_file_path=$(sanitize_input "$file_path")
-				cp "$store_file_contents" "${store_file_contents}_${index}"
-				cp "$store_file_contents" "${store_file_contents}_${index}_line_numbers"
 
 				# Escape special charters before using the string in extended 'grep'.
 				# However, the "|" character should be left unescaped.
 				# shellcheck disable=SC2001
-				sanitized_patterns=$(sed -e 's/[][?*+.\/$^(){}]/\\&/g' <<<"$patterns")
-
-				if gh api "repos/${sanitized_owner_repo_name}/contents/${sanitized_file_path}" \
-					--cache "$gh_default_cache_time" \
-					--header "$gh_accept_raw" \
-					--header "$gh_rest_api_version" \
-					>"${store_file_contents}_${index}" \
-					2>"$store_gh_content_debug"; then
-					# The first attempt is the typical way and is usually successful.
-					:
-				elif gh api "https://raw.githubusercontent.com/${sanitized_owner_repo_name}/HEAD/${sanitized_file_path}" \
-					--cache "$gh_default_cache_time" \
-					--header "$gh_accept_raw" \
-					--header "$gh_rest_api_version" \
-					>"${store_file_contents}_${index}" \
-					2>"$store_gh_content_debug"; then
-					# This case covers 'symlinked' files, for example:
-					# 'repo:model-checking/kani in:path macos'.
-					:
-				else
-					# There could be several reasons why pulling content might fail. One
-					# reason could be outdated cached search results from GitHub. For
-					# example, a user might have deleted their account, but their content
-					# is still in the search index.
-					echo "$index" >>"$store_skip_count"
-					if $debug_mode; then
-						error_encountered=true
-					else
-						{
-							cat "$store_gh_content_debug"
-							printf "\n[%s] SKIPPED: The contents of this file couldn't be fetched.\n\n" "$(date -u +%Y-%m-%dT%H-%M-%S)"
-						} >>"${store_file_contents}_${index}"
+				sanitized_patterns=$(command sed -e 's/[][?*+.\/$^(){}]/\\&/g' <<<"$patterns")
+				SECONDS=0
+				while :; do
+					! command kill -0 "$PPID" 2>/dev/null && break
+					if [ -s "${store_file_contents}_${index}" ]; then
+						cp "${store_file_contents}_${index}" "${store_file_contents}_${index}_fetched"
+						: >"${store_file_contents}_${index}"
+						break
 					fi
-					index_color="$RED_NORMAL"
-					patterns="__NoPatternFound__"
+					command sleep 0.1
+					if ((SECONDS > 2)); then
+						# There could be several reasons why pulling content might fail. One
+						# reason could be outdated cached search results from GitHub. For
+						# example, a user might have deleted their account, but their content
+						# is still in the search index.
+						echo "$index" >>"$store_skip_count"
+						if $debug_mode; then
+							error_encountered=true
+						else
+							{
+								command cat "$store_gh_content_debug"
+								printf "\n[%s] SKIPPED: The contents of this file couldn't be fetched.\n\n" "$(date -u +%Y-%m-%dT%H-%M-%S)"
+							} >>"${store_file_contents}_${index}"
+						fi
+						index_color="$RED_NORMAL"
+						patterns="__NoPatternFound__"
+						break
+					fi
+				done
+				if command grep --quiet --word-regexp "$index" "$store_skip_count"; then
+					continue
 				fi
-
 				curl_custom "transform-header:printf '%b%s/%s of %s collected...%b' '$DARK_GRAY' \
 					'$index' '$((total_count > gh_user_limit ? gh_user_limit : total_count))' \
 					'$total_count' '$COLOR_RESET'"
@@ -378,9 +407,9 @@ gh_query() {
 					# Use the '--text' flag, as grep will simply print 'Binary file … matches' if
 					# the file contains binary characters. It won't even throw an error.
 					# https://unix.stackexchange.com/questions/19907
-				done < <(grep --extended-regexp --line-number --text \
+				done < <(command grep --extended-regexp --line-number --text \
 					--regexp="$sanitized_patterns" -- \
-					"${store_file_contents}_${index}" 2>"${redirect_location}" | cut -d: -f1)
+					"${store_file_contents}_${index}_fetched" 2>"${redirect_location}" | cut -d: -f1)
 				# Save additional information only if an error is encountered by grep
 				if $debug_mode && [[ -s ${store_grep_extended_debug}_${index} ]]; then
 					{
@@ -403,13 +432,13 @@ gh_query() {
 				fi
 			done
 			# Format the input list into a structured table.
-			column -ts $'\t' <"$store_tee_append" >"$store_input_list"
+			command column -ts $'\t' <"$store_tee_append" >"$store_input_list"
 			skip_count="$(sed -n '$=' "$store_skip_count")"
 
 			if $error_encountered; then
 				{
 					echo
-					gh api rate_limit \
+					command gh api rate_limit \
 						--header "$gh_accept_json" \
 						--header "$gh_rest_api_version" \
 						--jq \
@@ -419,8 +448,8 @@ gh_query() {
 							used_limit: "\(.value.used)/\(.value.limit)",
 							reset: "\(.value.reset | strflocaltime("%H:%M:%S %Z") ) (\((.value.reset - now) | (./60|ceil))m)"
 						}  | [.name, .used_limit, .reset]) | @tsv' |
-						column -ts $'\t' |
-						bat --plain --language COMMIT_EDITMSG
+						command column -ts $'\t' |
+						command bat --color=always --plain --language COMMIT_EDITMSG
 				} >>"$store_gh_content_debug"
 				curl_custom "transform-header(printf '%bAPI failed for repos/%s/contents/%s%b' \
 					'$RED_NORMAL' '$owner_repo_name' '$file_path' '$COLOR_RESET')+change-preview:cat '$store_gh_content_debug'"
@@ -435,7 +464,6 @@ gh_query() {
 			fi
 
 		} <<<"$data"
-
 	else
 		if [ -z "$input" ]; then
 			curl_custom "transform-header:printf '%b? help · esc quit\nPlease enter a search query.%b' '$DARK_GRAY' '$COLOR_RESET'"
@@ -463,7 +491,7 @@ view_contents() {
 		"--color=always"
 	)
 
-	[[ $file_extension != "null" ]] && if bat --language "$file_extension" <<<"test" >/dev/null 2>&1; then
+	[[ $file_extension != "null" ]] && if command bat --language "$file_extension" <<<"test" >/dev/null 2>&1; then
 		bat_args+=("--language=${file_extension}")
 	fi
 	IFS=' ' read -ra line_numbers <"${store_file_contents}_${index}_line_numbers"
@@ -482,7 +510,7 @@ view_contents() {
 
 	if $open_in_editor; then
 		tempfile_with_ext="${store_file_contents}_${index}_${file_name}"
-		cp "${store_file_contents}_${index}" "$tempfile_with_ext"
+		cp "${store_file_contents}_${index}_fetched" "$tempfile_with_ext"
 		case $(basename "${EDITOR-}") in
 			code | codium)
 				editor_args=(--reuse-window --goto "${tempfile_with_ext}:${line_numbers:-1}")
@@ -502,10 +530,10 @@ view_contents() {
 	if $debug_mode; then
 		{
 			echo -n "bat version: "
-			bat --version
+			command bat --version
 			echo -n "config file: "
-			bat --config-file
-			cat "$(bat --config-file)"
+			command bat --config-file
+			command cat "$(command bat --config-file)"
 			for value in BAT_PAGER BAT_CONFIG_PATH BAT_STYLE BAT_THEME BAT_TABS PAGER; do
 				echo "$value = '${!value}'"
 			done
@@ -517,11 +545,9 @@ view_contents() {
 		# The 'less' pager can move to a specific line.
 		if [[ $(basename "${PAGER-}") =~ ^(bat|less)$ ]]; then
 			# If the user has assigned the environment variable LESS with the
-			# '-F/--quit-if-one-screen' option, and explicitly set the '--pager' to 'less',
-			# the screen will not remain open for small text files that fit on the entire
-			# screen. The simplest solution is to unset the  'LESS' variable and define
-			# custom settings. Replace "${LESS-}" with an empty string when 'LESS' is
-			# already unset to avoid an error from 'set -o nounset'.
+			# '-F/--quit-if-one-screen' option, and explicitly set the '--pager' to 'less', the
+			# screen will not remain open for small text files that fit on the entire screen. The
+			# simplest solution is to unset the  'LESS' variable and define custom settings.
 			[[ -n ${LESS-} ]] && unset LESS
 			# Account for an offset of 3 lines for the bat header.
 			less_move_to_line=$((${line_numbers:-1} + 3))
@@ -533,6 +559,7 @@ view_contents() {
 				"--quit-on-intr"        # quit less immediately with ^C
 				"--RAW-CONTROL-CHARS"   # colors will not work without it
 				"--tilde"               # don't show '~' symbols on lines after EOF
+				"--window=7"            # scrolling window size to n lines
 				"+${less_move_to_line}" # as the variable name suggests
 			)
 			if [[ -z $(check_version less 550 echo) ]]; then
@@ -547,7 +574,7 @@ view_contents() {
 		# Not needed in the pager, as these environment variables aren't expanded there.
 		bat_args+=("--terminal-width=${FZF_PREVIEW_COLUMNS:-$COLUMNS}")
 	fi
-	eval bat "${bat_args[*]}" "${store_file_contents}_${index}"
+	eval command bat "${bat_args[*]}" "${store_file_contents}_${index}_fetched"
 }
 
 get_history_count() {
@@ -557,7 +584,7 @@ get_history_count() {
 		# the gh_find_code_history.txt file.
 		echo 0
 	else
-		cat "$store_history_counter"
+		command cat "$store_history_counter"
 	fi
 }
 
@@ -582,7 +609,7 @@ view_history_commands() {
 	if [ -s "$gh_find_code_history" ]; then
 		header_info=$(printf "%s (%s/%s) │ sort desc (↓) │ ^n (next) / ^p (previous)" \
 			"${gh_find_code_history##*/}" "$counter" "$(sed -n '$=' "$gh_find_code_history")")
-		bat --color=always \
+		command bat --color=always \
 			--highlight-line="$counter" \
 			--terminal-width="${FZF_PREVIEW_COLUMNS:-$COLUMNS}" \
 			--file-name="$header_info" \
@@ -594,22 +621,29 @@ view_history_commands() {
 
 # ===================== lets begin ========================
 
-: | fzf \
+# Switching with the new 'transform' action in 0.45.0 can be challenging because the 'echo' command
+# does not preserve the search query's quotation marks ("). For instance, in this query:
+# '"zsh -c"', the quotation marks will not be saved to the '/tmp/rg-fzf-r' file.
+#
+# 	--bind "ctrl-t:transform:[[ ! {fzf:prompt} =~ Fuzzy ]] &&
+#		echo 'unbind(change)+change-prompt(Fuzzy search > )+enable-search+transform-query:echo {fzf:query} > /tmp/rg-fzf-r; cat /tmp/rg-fzf-f' ||
+#		echo 'rebind(change)+change-prompt($fzf_prompt)+disable-search+transform-query:echo {fzf:query} > /tmp/rg-fzf-f; cat /tmp/rg-fzf-r'" \
+: | command fzf \
 	--ansi \
-	--bind $'start:execute-silent(echo $FZF_PORT > $store_fzf_port)+reload:gh_query {q}' \
-	--bind "change:first+reload:sleep 0.65; gh_query {q} || true" \
+	--bind $'start:execute-silent(echo $FZF_PORT > $store_fzf_port)+reload:gh_query {fzf:query}' \
+	--bind "change:first+reload:sleep 0.65; gh_query {fzf:query}" \
 	--bind 'ctrl-b:execute-silent:gh browse --repo {4} {5}:{1}' \
 	--bind "ctrl-h:change-preview(view_history_commands)+change-preview-window:~0:+1" \
 	--bind "ctrl-n:execute-silent(next)+refresh-preview+next-history" \
 	--bind "ctrl-p:execute-silent(previous)+refresh-preview+prev-history" \
-	--bind 'ctrl-o:execute:[[ -n {q} && -n {} ]] && open_in_editor=true view_contents {}' \
-	--bind 'ctrl-r:reload:gh_user_limit=100;gh_query {q} || true' \
-	--bind 'ctrl-t:execute-silent:open_query_in_browser {q}' \
-	--bind 'enter:execute:[[ -n {q} && -n {} ]] && open_in_pager=true view_contents {}' \
+	--bind 'ctrl-o:execute:[[ -n {fzf:query} && -n {} ]] && open_in_editor=true view_contents {}' \
+	--bind 'ctrl-r:reload:gh_user_limit=100;gh_query {fzf:query}' \
+	--bind 'ctrl-t:execute-silent:open_query_in_browser {fzf:query}' \
+	--bind 'enter:execute:[[ -n {fzf:query} && -n {} ]] && open_in_pager=true view_contents {}' \
 	--bind 'esc:become:' \
 	--bind '?:change-preview(print_help_text)+change-preview-window:~0:+1' \
 	--bind 'scroll-up:offset-up,scroll-down:offset-down' \
-	--bind 'tab:change-preview([[ -n {q} && -n {} ]] && view_contents {})+change-preview-window:hidden:<70(hidden)|+{1}+3/3' \
+	--bind 'tab:change-preview([[ -n {fzf:query} && -n {} ]] && view_contents {})+change-preview-window:hidden:<70(hidden)|+{1}+3/3' \
 	--border block \
 	--color 'bg+:233,bg:235,gutter:235,border:238,scrollbar:235' \
 	--color 'preview-bg:234,preview-border:236,preview-scrollbar:237' \
@@ -628,7 +662,7 @@ view_history_commands() {
 	--listen \
 	--no-multi \
 	--pointer '▶' \
-	--preview "[[ -n {q} && -n {} ]] && view_contents {}" \
+	--preview "[[ -n {fzf:query} && -n {} ]] && view_contents {}" \
 	--preview-window 'border-block:~3:+{1}+3/3:nohidden:right:nowrap:65%:<70(bottom:75%)' \
 	--prompt "$fzf_prompt" \
 	--query "$*" \
