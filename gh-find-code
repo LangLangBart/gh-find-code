@@ -265,7 +265,11 @@ gh_query() {
 	local file_extension sanitized_patterns sanitized_owner_repo_name sanitized_file_path
 	local matched_line error_encountered redirect_location index_color
 	declare -a line_numbers
-	if data=$(command gh api search/code \
+	if [ -z "$input" ]; then
+		curl_custom "transform-header:printf '%b? help · esc quit\nPlease enter a search query.%b' '$DARK_GRAY' '$COLOR_RESET'"
+		return
+	fi
+	if ! data=$(command gh api search/code \
 		--method GET \
 		--cache "$gh_default_cache_time" \
 		--header "$gh_accept_json" \
@@ -285,6 +289,10 @@ gh_query() {
 			patterns: ([.value.text_matches[] | .. | .text? | select(type=="string")] as $patterns_array |
 				if $patterns_array == [] then "__NoPatternFound__" else $patterns_array | unique | join("|") end)
 		} | [.index, .owner_repo_name, .file_name, .file_path, .patterns] | @tsv)' 2>"$store_gh_search_debug"); then
+		curl_custom "transform-header:printf '%bFailed to get the search results, check the query syntax.%b' \
+				'$RED_NORMAL' '$COLOR_RESET'"
+		return
+	else
 		({
 			# first line
 			IFS=' ' read -r items total_count
@@ -405,8 +413,11 @@ gh_query() {
 					# Use the '--text' flag, as grep will simply print 'Binary file … matches' if
 					# the file contains binary characters. It won't even throw an error.
 					# https://unix.stackexchange.com/questions/19907
-				done < <(command grep --extended-regexp --line-number --text \
-					--regexp="$sanitized_patterns" -- \
+					# I compared the performance of grep and rg, finding grep to be slightly faster,
+					# even with large files (~2000 lines). I may need to investigate further, but
+					# for now, I'm opting to use grep.
+				done < <(command grep --color=never --line-number --text \
+					--extended-regexp --regexp="$sanitized_patterns" -- \
 					"${store_file_contents}_${index}_fetched" 2>"${redirect_location}" | cut -d: -f1)
 				# Save additional information only if an error is encountered by grep
 				if $debug_mode && [[ -s ${store_grep_extended_debug}_${index} ]]; then
@@ -462,13 +473,7 @@ gh_query() {
 			fi
 
 		} <<<"$data"
-	else
-		if [ -z "$input" ]; then
-			curl_custom "transform-header:printf '%b? help · esc quit\nPlease enter a search query.%b' '$DARK_GRAY' '$COLOR_RESET'"
-		else
-			curl_custom "transform-header:printf '%bFailed to get the search results, check the query syntax.%b' \
-				'$RED_NORMAL' '$COLOR_RESET'"
-		fi
+		return
 	fi
 }
 
