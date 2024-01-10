@@ -547,29 +547,16 @@ view_contents() {
 		bat_args+=("--paging=always")
 		# The 'less' pager can move to a specific line.
 		if [[ $(basename "${PAGER-}") =~ ^(bat|less)$ ]]; then
-			# If the user has assigned the environment variable LESS with the
-			# '-F/--quit-if-one-screen' option, and explicitly set the '--pager' to 'less', the
-			# screen will not remain open for small text files that fit on the entire screen. The
-			# simplest solution is to unset the  'LESS' variable and define custom settings.
-			[[ -n ${LESS-} ]] && unset LESS
-			# Account for an offset of 3 lines for the bat header.
+			# The long option (--+…) for resetting the option to its default setting is broken in
+			# less version 643, so only use the short version.
+			# Ref: https://github.com/gwsw/less/issues/452
 			less_move_to_line=$((${line_numbers:-1} + 3))
 			less_args=(
-				"--LONG-PROMPT"         # Long prompts ("Line X of Y")
-				"--hilite-search"       # Highlight results when searching with slash key (/)
-				"--jump-target=.3"      # percent on the screen for the target line
-				"--quiet"               # be more quiet
-				"--quit-on-intr"        # quit less immediately with ^C
-				"--RAW-CONTROL-CHARS"   # colors will not work without it
-				"--tilde"               # don't show '~' symbols on lines after EOF
-				"--window=7"            # scrolling window size to n lines
+				"--clear-screen"        # to be painted from the top line down
+				"-+F"                   # disable exiting if the entire file can be displayed on the first screen
+				"-+X"                   # disable screen clearing prevention
 				"+${less_move_to_line}" # as the variable name suggests
 			)
-			if [[ -z $(check_version less 550 echo) ]]; then
-				# https://www.greenwoodsoftware.com/less/old.html
-				# mouse input came with version 550
-				less_args+=("--mouse")
-			fi
 			# https://github.com/sharkdp/bat#using-a-different-pager
 			bat_args+=("--pager='less ${less_args[*]}'")
 		fi
