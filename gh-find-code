@@ -19,7 +19,7 @@ debug_mode=false
 open_in_editor=false
 open_in_pager=false
 fzf_prompt="❮❯ Code: "
-FZF_API_KEY="$(head -c 32 /dev/urandom | base64)"
+FZF_API_KEY="$(command head -c 32 /dev/urandom | command base64)"
 BAT_THEME=${BAT_THEME:-Monokai Extended}
 # bash is needed to use exported functions when the default shellis not bash
 SHELL=bash
