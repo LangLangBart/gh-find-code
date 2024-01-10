@@ -60,9 +60,11 @@ DARK_GRAY='\033[0;90m'
 cleanup() {
 	$debug_mode && printf "%bDebug mode was ON, the following files weren't deleted.%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
 	if [ -f "$store_ppid" ]; then
-		command awk '!x[$0]++' "$store_ppid" | while read -r ppid; do
-			command kill "$ppid" 2>/dev/null
-		done
+		while read -r ppid; do
+			if command kill -0 "$ppid" 2>/dev/null; then
+				command kill "$ppid" 2>/dev/null
+			fi
+		done <"$store_ppid"
 	fi
 	command rm -rf "$scratch_directory" 2>/dev/null
 	if ! $debug_mode; then
@@ -283,7 +285,6 @@ gh_query() {
 			patterns: ([.value.text_matches[] | .. | .text? | select(type=="string")] as $patterns_array |
 				if $patterns_array == [] then "__NoPatternFound__" else $patterns_array | unique | join("|") end)
 		} | [.index, .owner_repo_name, .file_name, .file_path, .patterns] | @tsv)' 2>"$store_gh_search_debug"); then
-		echo "${PPID-}" >>"$store_ppid"
 		({
 			# first line
 			IFS=' ' read -r items total_count
@@ -292,7 +293,7 @@ gh_query() {
 				# https://github.com/junegunn/fzf/issues/398
 				# Tested with 'sudo opensnoop -n bash', without a break check it keeps going through
 				# the data list. Check if the parent process is still running or kill the loop
-				! kill -0 "$PPID" 2>/dev/null && break
+				! command kill -0 "$PPID" 2>/dev/null && break
 				# These sanitizations are necessary because file paths may contain special
 				# characters, such as hashtags (#).
 				sanitized_owner_repo_name=$(sanitize_input "$owner_repo_name")
@@ -330,7 +331,7 @@ gh_query() {
 			IFS=' ' read -r items total_count
 			# listed items
 			while IFS=$'\t' read -r index owner_repo_name file_name file_path patterns; do
-				! kill -0 "$PPID" 2>/dev/null && break
+				! command kill -0 "$PPID" 2>/dev/null && break
 				index_color="$WHITE_NORMAL"
 				file_extension="null"
 				# Check if the file has a file extension and assign it.
@@ -353,7 +354,7 @@ gh_query() {
 				sanitized_patterns=$(command sed -e 's/[][?*+.\/$^(){}]/\\&/g' <<<"$patterns")
 				SECONDS=0
 				while :; do
-					! kill -0 "$PPID" 2>/dev/null && break
+					! command kill -0 "$PPID" 2>/dev/null && break
 					if [ -s "${store_file_contents}_${index}" ]; then
 						cp "${store_file_contents}_${index}" "${store_file_contents}_${index}_fetched"
 						: >"${store_file_contents}_${index}"
@@ -627,7 +628,7 @@ view_history_commands() {
 #		echo 'rebind(change)+change-prompt($fzf_prompt)+disable-search+transform-query:echo {fzf:query} > /tmp/rg-fzf-f; cat /tmp/rg-fzf-r'" \
 : | command fzf \
 	--ansi \
-	--bind $'start:execute-silent(echo $FZF_PORT > $store_fzf_port)+reload:gh_query {fzf:query}' \
+	--bind $'start:execute-silent(echo ${PPID-} > $store_ppid ;echo $FZF_PORT > $store_fzf_port)+reload:gh_query {fzf:query}' \
 	--bind "change:first+reload:sleep 0.65; gh_query {fzf:query}" \
 	--bind 'ctrl-b:execute-silent:gh browse --repo {4} {5}:{1}' \
 	--bind "ctrl-h:change-preview(view_history_commands)+change-preview-window:~0:+1" \
