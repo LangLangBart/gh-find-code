@@ -59,12 +59,20 @@ DARK_GRAY='\033[0;90m'
 
 cleanup() {
 	$debug_mode && printf "%bDebug mode was ON, the following files weren't deleted.%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
-	if [ -f "$store_ppid" ]; then
+	if [ -s "$store_ppid" ]; then
 		while read -r ppid; do
 			if command kill -0 "$ppid" 2>/dev/null; then
 				command kill "$ppid" 2>/dev/null
 			fi
 		done <"$store_ppid"
+	fi
+	if [ -s "$store_pids" ]; then
+		command awk '!x[$0]++' "$store_pids" | while read -r pid; do
+			if command kill -0 "$pid" 2>/dev/null; then
+				command kill "$pid" 2>/dev/null
+			fi
+		done
+		: >"$store_pids"
 	fi
 	command rm -rf "$scratch_directory" 2>/dev/null
 	if ! $debug_mode; then
@@ -106,6 +114,7 @@ store_file_contents="${scratch_directory}/file_content"
 store_skip_count="${scratch_directory}/skip_count"
 store_history_counter="${scratch_directory}/history_counter"
 store_ppid="${scratch_directory}/ppid"
+store_pids="${scratch_directory}/pids"
 
 # Debug directory
 debug_directory=$(mktemp -dt "$date_prefix.gh_find_code.debug") || die "Can't create debug directory."
@@ -155,7 +164,7 @@ ${WHITE_BOLD}Hotkeys${COLOR_RESET}
   ${GREEN_NORMAL}ctrl-n${COLOR_RESET}  next history command
   ${GREEN_NORMAL}ctrl-o${COLOR_RESET}  open the file content in the editor
   ${GREEN_NORMAL}ctrl-p${COLOR_RESET}  previous history command
-  ${GREEN_NORMAL}ctrl-r${COLOR_RESET}  reload with 100 results
+  ${GREEN_NORMAL}ctrl-r${COLOR_RESET}  reload with up to 100 results
   ${GREEN_NORMAL}ctrl-t${COLOR_RESET}  open the search query in the browser
   ${GREEN_NORMAL}enter ${COLOR_RESET}  open the file in the pager
   ${GREEN_NORMAL}tab   ${COLOR_RESET}  toggle the file preview
@@ -269,6 +278,15 @@ gh_query() {
 		curl_custom "transform-header:printf '%b? help · esc quit\nPlease enter a search query.%b' '$DARK_GRAY' '$COLOR_RESET'"
 		return
 	fi
+	# Ensure all background jobs are terminated before starting a new one.
+	if [ -s "$store_pids" ]; then
+		command awk '!x[$0]++' "$store_pids" | while read -r pid; do
+			if command kill -0 "$pid" 2>/dev/null; then
+				command kill "$pid" 2>/dev/null
+			fi
+		done
+		: >"$store_pids"
+	fi
 	if ! data=$(command gh api search/code \
 		--method GET \
 		--cache "$gh_default_cache_time" \
@@ -293,6 +311,7 @@ gh_query() {
 				'$RED_NORMAL' '$COLOR_RESET'"
 		return
 	else
+		curl_custom "transform-header:printf '%bSearching…%b' '$DARK_GRAY' '$COLOR_RESET'"
 		({
 			# first line
 			IFS=' ' read -r items total_count
@@ -325,8 +344,11 @@ gh_query() {
 						:
 					fi
 				) &
+				# save process ID of the most recently invoked background job
+				echo $! >>"$store_pids"
 			done
 		} <<<"$data") &
+		echo $! >>"$store_pids"
 		{
 			error_encountered=false
 			skip_count=0
@@ -621,7 +643,7 @@ view_history_commands() {
 : | command fzf \
 	--ansi \
 	--bind $'start:execute-silent(echo ${PPID-} > $store_ppid ;echo $FZF_PORT > $store_fzf_port)+reload:gh_query {fzf:query}' \
-	--bind "change:first+reload:sleep 0.65; gh_query {fzf:query}" \
+	--bind "change:first+reload:sleep 0.5; gh_query {fzf:query}" \
 	--bind 'ctrl-b:execute-silent:gh browse --repo {4} {5}:{1}' \
 	--bind "ctrl-h:change-preview(view_history_commands)+change-preview-window:~0:+1" \
 	--bind "ctrl-n:execute-silent(next)+refresh-preview+next-history" \
