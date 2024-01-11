@@ -13,6 +13,7 @@ set -o allexport -o errexit -o nounset -o pipefail
 # --jq '[.data.__type.enumValues[].name] | join(", ")'
 
 # TODO: add tests
+# TODO: replace python with a more typical bash solution
 
 # ====================== set variables =======================
 debug_mode=false
@@ -33,7 +34,7 @@ gh_accept_json="Accept: application/vnd.github+json"
 gh_accept_raw="Accept: application/vnd.github.raw"
 gh_accept_text_match="Accept: application/vnd.github.text-match+json"
 gh_rest_api_version="X-GitHub-Api-Version:2022-11-28"
-# see https://github.com/junegunn/fzf/blob/master/CHANGELOG.md 'preview-border' option
+# see https://github.com/junegunn/fzf/blob/master/CHANGELOG.md longform '{fzf:query}' option
 min_fzf_version="0.45.0"
 # a bug with 'gh-browse' with relative paths was fixed
 # https://github.com/cli/cli/issues/7674
@@ -381,7 +382,6 @@ gh_query() {
 
 				# Escape special charters before using the string in extended 'grep'.
 				# However, the "|" character should be left unescaped.
-				# shellcheck disable=SC2001
 				sanitized_patterns=$(command sed -e 's/[][?*+.\/$^(){}]/\\&/g' <<<"$patterns")
 				SECONDS=0
 				while :; do
