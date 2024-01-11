@@ -56,7 +56,7 @@ gh find-code [Flags] [Search query]
 | <kbd>ctrl</kbd><kbd>n</kbd> | next history command                 |
 | <kbd>ctrl</kbd><kbd>o</kbd> | open the file content in the editor  |
 | <kbd>ctrl</kbd><kbd>p</kbd> | previous history command             |
-| <kbd>ctrl</kbd><kbd>r</kbd> | reload                               |
+| <kbd>ctrl</kbd><kbd>r</kbd> | reload with up to 100 results        |
 | <kbd>ctrl</kbd><kbd>t</kbd> | open the search query in the browser |
 | <kbd>enter</kbd>            | open the file in the pager           |
 | <kbd>tab</kbd>              | toggle the file preview              |
