@@ -287,6 +287,7 @@ gh_query() {
 		done
 		: >"$store_pids"
 	fi
+	curl_custom "transform-header:printf '%bSearching…%b' '$DARK_GRAY' '$COLOR_RESET'"
 	if ! data=$(command gh api search/code \
 		--method GET \
 		--cache "$gh_default_cache_time" \
@@ -306,12 +307,12 @@ gh_query() {
 			# extended grep
 			patterns: ([.value.text_matches[] | .. | .text? | select(type=="string")] as $patterns_array |
 				if $patterns_array == [] then "__NoPatternFound__" else $patterns_array | unique | join("|") end)
-		} | [.index, .owner_repo_name, .file_name, .file_path, .patterns] | @tsv)' 2>"$store_gh_search_debug"); then
-		curl_custom "transform-header:printf '%bFailed to get the search results, check the query syntax.%b' \
+		} | [.index, .owner_repo_name, .file_name, .file_path, .patterns] | @tsv)' \
+		2>"$store_gh_search_debug") || [[ -z $data ]]; then
+		curl_custom "transform-header:printf '%bFailed to get the search results!\n\t- Check query syntax\n\t- Check internet connection%b' \
 				'$RED_NORMAL' '$COLOR_RESET'"
 		return
 	else
-		curl_custom "transform-header:printf '%bSearching…%b' '$DARK_GRAY' '$COLOR_RESET'"
 		({
 			# first line
 			IFS=' ' read -r items total_count
