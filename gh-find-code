@@ -14,7 +14,7 @@ set -o allexport -o errexit -o nounset -o pipefail
 
 # TODO: add tests
 # TODO: replace python with a more typical bash solution
-
+# TODO: Investigate the cause of the experienced output from a background job after exiting from 'fzf'
 # ====================== set variables =======================
 debug_mode=false
 open_in_editor=false
