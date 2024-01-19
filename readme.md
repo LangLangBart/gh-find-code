@@ -51,7 +51,6 @@ gh find-code [Flags] [Search query]
 | Key Bindings fzf            | Description                          |
 | --------------------------- | ------------------------------------ |
 | <kbd>?</kbd>                | help                                 |
-| <kbd>ctrl</kbd><kbd>a</kbd> | open the search query in the browser |
 | <kbd>ctrl</kbd><kbd>b</kbd> | open the file in the browser         |
 | <kbd>ctrl</kbd><kbd>h</kbd> | display the history commands         |
 | <kbd>ctrl</kbd><kbd>n</kbd> | next history command                 |
@@ -59,6 +58,7 @@ gh find-code [Flags] [Search query]
 | <kbd>ctrl</kbd><kbd>p</kbd> | previous history command             |
 | <kbd>ctrl</kbd><kbd>r</kbd> | reload with up to 100 results        |
 | <kbd>ctrl</kbd><kbd>t</kbd> | toggle between Code and Fuzzy search |
+| <kbd>ctrl</kbd><kbd>x</kbd> | open the search query in the browser |
 | <kbd>enter</kbd>            | open the file in the pager           |
 | <kbd>tab</kbd>              | toggle the file preview              |
 | <kbd>esc</kbd>              | quit                                 |
