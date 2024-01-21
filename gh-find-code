@@ -16,15 +16,32 @@ set -o allexport -o errexit -o nounset -o pipefail
 # TODO: replace python with a more typical bash solution
 # TODO: Investigate the cause of the experienced output from a background job after exiting from 'fzf'
 # ====================== set variables =======================
+
+# define colors
+COLOR_RESET='\033[0m'
+RED_NORMAL='\033[0;31m'
+GREEN_NORMAL='\033[0;32m'
+YELLOW_NORMAL='\033[0;33m'
+MAGENTA_NORMAL="\033[0;35m"
+MAGENTA_BOLD="\033[1;35m"
+CYAN_NORMAL="\033[0;36m"
+CYAN_BOLD="\033[1;36m"
+CYAN_INVERT="\033[7;36m"
+WHITE_NORMAL='\033[0;97m'
+WHITE_BOLD='\033[1;97m'
+DARK_GRAY='\033[0;90m'
+
 debug_mode=false
 open_in_editor=false
 open_in_pager=false
-fzf_prompt="❮❯ Code: "
+fzf_prompt="$(printf "%b❮❯ Code: %b" "$CYAN_NORMAL" "$COLOR_RESET")"
+fzf_prompt_fuzzy="$(printf "%b➤ Fuzzy:%b " "$CYAN_INVERT" "$COLOR_RESET")"
+
 FZF_API_KEY="$(command head -c 32 /dev/urandom | command base64)"
 BAT_THEME=${BAT_THEME:-Monokai Extended}
-# bash is needed to use exported functions when the default shellis not bash
-SHELL=bash
-# Used for the '--history' flag in fzf to store my commands and retrieve them when necessary.
+# Bash is required to use exported functions when the default shell is not bash.
+SHELL=$(which bash)
+# Used for the '--history' flag in fzf to store my commands and retrieve them when needed.
 gh_find_code_history="${BASH_SOURCE%/*}/gh_find_code_history.txt"
 # A cached version will be used before a new one is pulled.
 gh_default_cache_time="1h"
@@ -42,19 +59,6 @@ min_gh_version="2.37.0"
 # requires 'urllib.parse'
 # https://docs.python.org/3/library/urllib.parse.html
 min_python_version="3.0.0"
-
-# define colors
-COLOR_RESET='\033[0m'
-RED_NORMAL='\033[0;31m'
-GREEN_NORMAL='\033[0;32m'
-YELLOW_NORMAL='\033[0;33m'
-MAGENTA_NORMAL="\033[0;35m"
-MAGENTA_BOLD="\033[1;35m"
-CYAN_NORMAL="\033[0;36m"
-CYAN_BOLD="\033[1;36m"
-WHITE_NORMAL='\033[0;97m'
-WHITE_BOLD='\033[1;97m'
-DARK_GRAY='\033[0;90m'
 
 # =========================== basics ============================
 
@@ -579,8 +583,9 @@ view_contents() {
 			less_move_to_line=$((${line_numbers:-1} + 3))
 			less_args=(
 				"--clear-screen"        # to be painted from the top line down
-				"-+F"                   # disable exiting if the entire file can be displayed on the first screen
-				"-+X"                   # disable screen clearing prevention
+				"--RAW-CONTROL-CHARS"   # Raw color codes in output (don't remove color codes)
+				"-+F"                   # reset exiting if the entire file can be displayed on the first screen
+				"-+X"                   # reset screen clearing prevention
 				"+${less_move_to_line}" # as the variable name suggests
 			)
 			# https://github.com/sharkdp/bat#using-a-different-pager
@@ -647,9 +652,9 @@ view_history_commands() {
 	--bind "ctrl-p:execute-silent(previous)+refresh-preview+prev-history" \
 	--bind 'ctrl-o:execute:[[ -n {fzf:query} && -n {} ]] && open_in_editor=true view_contents {}' \
 	--bind 'ctrl-r:reload:gh_user_limit=100;gh_query {fzf:query}' \
-	--bind "ctrl-t:transform:[[ ! {fzf:prompt} =~ Fuzzy ]] &&
-		echo 'unbind(change)+change-prompt(Fuzzy search > )+enable-search+transform-query:echo \{fzf:query} > $store_search_string; cat $store_fuzzy_search_string' ||
-		echo 'rebind(change)+change-prompt($fzf_prompt)+disable-search+transform-query:echo \{fzf:query} > $store_fuzzy_search_string; cat $store_search_string'" \
+	--bind "ctrl-t:transform:[[ ! {fzf:prompt} == \"$fzf_prompt\" ]] &&
+		echo 'rebind(change)+change-prompt($fzf_prompt)+disable-search+transform-query:echo \{fzf:query} > $store_fuzzy_search_string; cat $store_search_string' ||
+		echo 'unbind(change)+change-prompt($fzf_prompt_fuzzy)+enable-search+transform-query:echo \{fzf:query} > $store_search_string; cat $store_fuzzy_search_string'" \
 	--bind 'ctrl-x:execute-silent:open_query_in_browser {fzf:query}' \
 	--bind 'enter:execute:[[ -n {fzf:query} && -n {} ]] && open_in_pager=true view_contents {}' \
 	--bind 'esc:become:' \
