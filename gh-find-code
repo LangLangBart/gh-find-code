@@ -51,8 +51,8 @@ gh_accept_json="Accept: application/vnd.github+json"
 gh_accept_raw="Accept: application/vnd.github.raw"
 gh_accept_text_match="Accept: application/vnd.github.text-match+json"
 gh_rest_api_version="X-GitHub-Api-Version:2022-11-28"
-# using 'transform' https://github.com/junegunn/fzf/blob/master/CHANGELOG.md
-min_fzf_version="0.45.0"
+# using 'FZF_PROMPT' https://github.com/junegunn/fzf/blob/master/CHANGELOG.md
+min_fzf_version="0.46.0"
 # a bug with 'gh-browse' with relative paths was fixed
 # https://github.com/cli/cli/issues/7674
 min_gh_version="2.37.0"
@@ -83,7 +83,7 @@ cleanup() {
 	if ! $debug_mode; then
 		command rm -rf "$debug_directory" 2>/dev/null
 	else
-		find "${debug_directory}/"* 2>/dev/null | while read -r matching_file; do
+		find "$debug_directory" -mindepth 1 2>/dev/null | while read -r matching_file; do
 			if [[ ! -s $matching_file ]]; then
 				command rm -f "$matching_file"
 			else
@@ -281,6 +281,7 @@ gh_query() {
 	local index owner_repo_name file_name file_path patterns
 	local file_extension sanitized_patterns sanitized_owner_repo_name sanitized_file_path
 	local matched_line error_encountered redirect_location index_color
+	local base_name dir_name
 	declare -a line_numbers
 	if [ -z "$input" ]; then
 		curl_custom "transform-header:printf '%b? help · esc quit\nPlease enter a search query.%b' '$DARK_GRAY' '$COLOR_RESET'"
@@ -459,12 +460,29 @@ gh_query() {
 				fi
 
 				echo "${line_numbers[*]}" >"${store_file_contents}_${index}_line_numbers"
+				# In cases where a file path is excessively long, basename /dirname might error out
+				# and return nothing. Truncate the length to the first/last 30 chars or so.
+				# Exemplary command: gh find-code 'repo:Killua-22/LeetCode filename:atoi.c'
+				# https://www.gnu.org/software/bash/manual/html_node/Shell-Parameter-Expansion.html
+				# TODO: This will disrupt the ctrl-b command. To resolve this, one could store the
+				# filepath in a separate file to allow 'gh browse …' to open it properly. This is a
+				# very specific edge case and may not require immediate attention.
+				if dirname "$file_path" &>/dev/null; then
+					dir_name=$(dirname "$file_path")
+				else
+					dir_name="${file_path:0:30}…"
+				fi
+				if basename "$file_path" &>/dev/null; then
+					base_name=$(basename "$file_path")
+				else
+					base_name="…${file_path: -30}"
+				fi
 				printf "%s\t%s\t%b%-3d%b\t%b%s%b/%b%s%b\t%b%s/%b%s%b\n" \
 					"${line_numbers:-1}" "$file_extension" "$index_color" "$index" "$COLOR_RESET" \
 					"$CYAN_NORMAL" "${owner_repo_name%/*}" "$COLOR_RESET" "$CYAN_BOLD" \
-					"${owner_repo_name#*/}" "$COLOR_RESET" "$MAGENTA_NORMAL" "$(dirname "$file_path")" \
-					"$MAGENTA_BOLD" "$(basename "$file_path")" "$COLOR_RESET" |
-					tee -a "$store_tee_append"
+					"${owner_repo_name#*/}" "$COLOR_RESET" "$MAGENTA_NORMAL" "$dir_name" \
+					"$MAGENTA_BOLD" "$base_name" "$COLOR_RESET" |
+					command tee -a "$store_tee_append"
 
 				if $error_encountered; then
 					break
@@ -642,25 +660,31 @@ view_history_commands() {
 
 # ===================== lets begin ========================
 
+# The ':;' in ':;view_contents \{}' is necessary for the 'ctrl-h' toggle. If not included, nothing
+# would be displayed. The reason for this is not yet understood.
 : | command fzf \
 	--ansi \
 	--bind $'start:execute-silent(echo ${PPID-} > $store_ppid ;echo $FZF_PORT > $store_fzf_port)+reload:gh_query {fzf:query}' \
 	--bind "change:first+reload:sleep 0.5; gh_query {fzf:query}" \
 	--bind 'ctrl-b:execute-silent:gh browse --repo {4} {5}:{1}' \
-	--bind "ctrl-h:change-preview(view_history_commands)+change-preview-window:~0:+1" \
+	--bind "ctrl-h:transform:[[ ! \$FZF_PROMPT =~ History ]] &&
+		echo 'change-prompt(History: )+change-preview(view_history_commands)+change-preview-window:~0:+1' ||
+		echo 'change-prompt($fzf_prompt)+change-preview(:;view_contents \{})+change-preview-window:+\{1}+3/3'" \
 	--bind "ctrl-n:execute-silent(next)+refresh-preview+next-history" \
 	--bind "ctrl-p:execute-silent(previous)+refresh-preview+prev-history" \
 	--bind 'ctrl-o:execute:[[ -n {fzf:query} && -n {} ]] && open_in_editor=true view_contents {}' \
 	--bind 'ctrl-r:reload:gh_user_limit=100;gh_query {fzf:query}' \
-	--bind "ctrl-t:transform:[[ ! {fzf:prompt} == \"$fzf_prompt\" ]] &&
+	--bind "ctrl-t:transform:[[ ! \$FZF_PROMPT == \"$fzf_prompt\" ]] &&
 		echo 'rebind(change)+change-prompt($fzf_prompt)+disable-search+transform-query:echo \{fzf:query} > $store_fuzzy_search_string; cat $store_search_string' ||
 		echo 'unbind(change)+change-prompt($fzf_prompt_fuzzy)+enable-search+transform-query:echo \{fzf:query} > $store_search_string; cat $store_fuzzy_search_string'" \
 	--bind 'ctrl-x:execute-silent:open_query_in_browser {fzf:query}' \
 	--bind 'enter:execute:[[ -n {fzf:query} && -n {} ]] && open_in_pager=true view_contents {}' \
 	--bind 'esc:become:' \
-	--bind '?:change-preview(print_help_text)+change-preview-window:~0:+1' \
 	--bind 'scroll-up:offset-up,scroll-down:offset-down' \
-	--bind 'tab:change-preview(view_contents {})+change-preview-window:hidden:<70(hidden)|+{1}+3/3' \
+	--bind "tab:change-prompt($fzf_prompt)+change-preview(view_contents {})+change-preview-window:hidden:<70(hidden)|+{1}+3/3" \
+	--bind "?:transform:[[ ! \$FZF_PROMPT =~ Help ]] &&
+		echo 'change-prompt(Help: )+change-preview(print_help_text)+change-preview-window:~0:+1' ||
+		echo 'change-prompt($fzf_prompt)+change-preview(:;view_contents \{})+change-preview-window:+\{1}+3/3'" \
 	--border block \
 	--color 'bg+:233,bg:235,gutter:235,border:238,scrollbar:235' \
 	--color 'preview-bg:234,preview-border:236,preview-scrollbar:237' \
@@ -680,7 +704,7 @@ view_history_commands() {
 	--no-multi \
 	--nth=2..,.. \
 	--pointer '▶' \
-	--preview "view_contents {}" \
+	--preview $'([[ $FZF_PROMPT =~ Help ]] && print_help_text) || ([[ $FZF_PROMPT =~ History ]] && view_history_commands) || view_contents {}' \
 	--preview-window 'border-block:~3:+{1}+3/3:nohidden:right:nowrap:65%:<70(bottom:75%)' \
 	--prompt "$fzf_prompt" \
 	--query "$*" \
