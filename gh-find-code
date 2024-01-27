@@ -477,11 +477,11 @@ gh_query() {
 				else
 					base_name="…${file_path: -30}"
 				fi
-				printf "%s\t%s\t%b%-3d%b\t%b%s%b/%b%s%b\t%b%s/%b%s%b\n" \
-					"${line_numbers:-1}" "$file_extension" "$index_color" "$index" "$COLOR_RESET" \
-					"$CYAN_NORMAL" "${owner_repo_name%/*}" "$COLOR_RESET" "$CYAN_BOLD" \
-					"${owner_repo_name#*/}" "$COLOR_RESET" "$MAGENTA_NORMAL" "$dir_name" \
-					"$MAGENTA_BOLD" "$base_name" "$COLOR_RESET" |
+				printf "%s\t%s\t%s\t%b%-3d%b\t%b%s%b/%b%s%b\t%b%s/%b%s%b\n" \
+					"${line_numbers:-1}" "$(get_history_count)" "$file_extension" "$index_color" \
+					"$index" "$COLOR_RESET" "$CYAN_NORMAL" "${owner_repo_name%/*}" "$COLOR_RESET" \
+					"$CYAN_BOLD" "${owner_repo_name#*/}" "$COLOR_RESET" "$MAGENTA_NORMAL" \
+					"$dir_name" "$MAGENTA_BOLD" "$base_name" "$COLOR_RESET" |
 					command tee -a "$store_tee_append"
 
 				if $error_encountered; then
@@ -526,10 +526,11 @@ gh_query() {
 }
 
 view_contents() {
+	[[ -z $* ]] && return
 	declare -a line_numbers bat_args editor_args less_args
 	local file_extension index file_path
 	local file_name tempfile_with_ext less_move_to_line
-	IFS=$'\t' read -r _ file_extension index _ file_path < <(sed -E $'s/[[:space:]]{2,}/\t/g' <<<"$@")
+	IFS=$'\t' read -r _ _ file_extension index _ file_path < <(sed -E $'s/[[:space:]]{2,}/\t/g' <<<"$@")
 	# Remove trailing whitespace that was caused by the '%-3d' placeholder in 'printf'.
 	index=$(tr -d '[:space:]' <<<"$index")
 
@@ -660,16 +661,17 @@ view_history_commands() {
 
 # ===================== lets begin ========================
 
-# The ':;' in ':;view_contents \{}' is necessary for the 'ctrl-h' toggle. If not included, nothing
-# would be displayed. The reason for this is not yet understood.
+# NOTE: The ':<<<{q}' is included to ensure that '{}' is evaluated, even when it's empty.
+# https://github.com/junegunn/fzf/issues/3353
+# NOTE: The 'change-preview-window' action in 'transform' should precede 'change-preview'.
 : | command fzf \
 	--ansi \
 	--bind $'start:execute-silent(echo ${PPID-} > $store_ppid ;echo $FZF_PORT > $store_fzf_port)+reload:gh_query {fzf:query}' \
 	--bind "change:first+reload:sleep 0.5; gh_query {fzf:query}" \
-	--bind 'ctrl-b:execute-silent:gh browse --repo {4} {5}:{1}' \
+	--bind 'ctrl-b:execute-silent:gh browse --repo {5} {6}:{1}' \
 	--bind "ctrl-h:transform:[[ ! \$FZF_PROMPT =~ History ]] &&
-		echo 'change-prompt(History: )+change-preview(view_history_commands)+change-preview-window:~0:+1' ||
-		echo 'change-prompt($fzf_prompt)+change-preview(:;view_contents \{})+change-preview-window:+\{1}+3/3'" \
+		echo 'change-prompt(History: )+change-preview-window(+\{2}+3/3)+change-preview:view_history_commands' ||
+		echo 'change-prompt($fzf_prompt)+change-preview-window(+\{1}+3/3)+change-preview:view_contents \{}'" \
 	--bind "ctrl-n:execute-silent(next)+refresh-preview+next-history" \
 	--bind "ctrl-p:execute-silent(previous)+refresh-preview+prev-history" \
 	--bind 'ctrl-o:execute:[[ -n {fzf:query} && -n {} ]] && open_in_editor=true view_contents {}' \
@@ -683,8 +685,8 @@ view_history_commands() {
 	--bind 'scroll-up:offset-up,scroll-down:offset-down' \
 	--bind "tab:change-prompt($fzf_prompt)+change-preview(view_contents {})+change-preview-window:hidden:<70(hidden)|+{1}+3/3" \
 	--bind "?:transform:[[ ! \$FZF_PROMPT =~ Help ]] &&
-		echo 'change-prompt(Help: )+change-preview(print_help_text)+change-preview-window:~0:+1' ||
-		echo 'change-prompt($fzf_prompt)+change-preview(:;view_contents \{})+change-preview-window:+\{1}+3/3'" \
+		echo 'change-prompt(Help: )+change-preview-window(~0:+1)+change-preview:print_help_text' ||
+		echo 'change-prompt($fzf_prompt)+change-preview-window(+\{1}+3/3)+change-preview:view_contents \{}'" \
 	--border block \
 	--color 'bg+:233,bg:235,gutter:235,border:238,scrollbar:235' \
 	--color 'preview-bg:234,preview-border:236,preview-scrollbar:237' \
@@ -704,7 +706,9 @@ view_history_commands() {
 	--no-multi \
 	--nth=2..,.. \
 	--pointer '▶' \
-	--preview $'([[ $FZF_PROMPT =~ Help ]] && print_help_text) || ([[ $FZF_PROMPT =~ History ]] && view_history_commands) || view_contents {}' \
+	--preview $':<<<{q}; ([[ $FZF_PROMPT =~ Help ]] && print_help_text) ||
+		([[ $FZF_PROMPT =~ History ]] && view_history_commands) ||
+		view_contents {}' \
 	--preview-window 'border-block:~3:+{1}+3/3:nohidden:right:nowrap:65%:<70(bottom:75%)' \
 	--prompt "$fzf_prompt" \
 	--query "$*" \
@@ -712,4 +716,4 @@ view_history_commands() {
 	--scrollbar '│▐' \
 	--separator '' \
 	--unicode \
-	--with-nth=3..
+	--with-nth=4..
