@@ -60,6 +60,32 @@ min_gh_version="2.37.0"
 # https://docs.python.org/3/library/urllib.parse.html
 min_python_version="3.0.0"
 
+# Creating temporary files. The current setup works but is very verbose. An attempt to use
+# associative arrays with 'declare -A' was unsuccessful as I couldn't access the associated
+# filename in child processes.
+
+date_prefix=$(date -u +%Y-%m-%dT%H-%M-%S)
+# Default directory for trivial files
+scratch_directory=$(mktemp -dt "$date_prefix.gh_find_code") || die "Can't create directory."
+store_input_list="${scratch_directory}/input_list"
+store_tee_append="${scratch_directory}/tee_append"
+store_fzf_port="${scratch_directory}/fzf_port"
+store_file_contents="${scratch_directory}/file_content"
+store_skip_count="${scratch_directory}/skip_count"
+store_history_counter="${scratch_directory}/history_counter"
+store_ppid="${scratch_directory}/ppid"
+store_pids="${scratch_directory}/pids"
+store_fuzzy_search_string="${scratch_directory}/fuzzy_search_string"
+store_search_string="${scratch_directory}/search_string"
+store_gh_find_code_history_tmp="${scratch_directory}/gh_find_code_history"
+
+# Debug directory
+debug_directory=$(mktemp -dt "$date_prefix.gh_find_code.debug") || die "Can't create debug directory."
+store_bat_debug="${debug_directory}/bat_debug"
+store_grep_extended_debug="${debug_directory}/grep_extended_debug"
+store_gh_search_debug="${debug_directory}/gh_search_debug"
+store_gh_content_debug="${debug_directory}/gh_content_debug"
+
 # =========================== basics ============================
 
 cleanup() {
@@ -79,6 +105,16 @@ cleanup() {
 		done
 		: >"$store_pids"
 	fi
+
+	# In the case of duplicates, only the most recent entry is kept. One could use 'tac' instead
+	# of 'tail -r', but it requires 'coreutils'. Be careful not to read and write the same file
+	# in the same pipeline - https://shellcheck.net/wiki/SC2094. This could lead to a race
+	# condition, resulting in the file being erased. It's crucial to run the process before
+	# deleting the scratch_directory.
+	[[ -f $gh_find_code_history ]] && command tail -r "$gh_find_code_history" |
+		command awk '!x[$0]++' | command tail -r >"$store_gh_find_code_history_tmp" &&
+		command mv "$store_gh_find_code_history_tmp" "$gh_find_code_history"
+
 	command rm -rf "$scratch_directory" 2>/dev/null
 	if ! $debug_mode; then
 		command rm -rf "$debug_directory" 2>/dev/null
@@ -91,11 +127,6 @@ cleanup() {
 			fi
 		done
 	fi
-
-	# In case of duplicates, only the most recent entry is preserved. Instead of 'tail -r', 'tac'
-	# can be used, but it requires 'coreutils'.
-	[[ -f $gh_find_code_history ]] && command tail -r "$gh_find_code_history" |
-		command awk '!x[$0]++' | command tail -r | command tee "$gh_find_code_history" >/dev/null
 }
 
 die() {
@@ -104,31 +135,6 @@ die() {
 }
 
 trap cleanup EXIT SIGHUP SIGINT
-
-# Creating temporary files. The current setup works but is very verbose. An attempt to use
-# associative arrays with 'declare -A' was unsuccessful as I couldn't access the associated
-# filename in child processes.
-
-date_prefix=$(date -u +%Y-%m-%dT%H-%M-%S)
-# Default directory for trivial files
-scratch_directory=$(mktemp -dt "$date_prefix.gh_find_code") || die "Can't create directory."
-store_input_list="${scratch_directory}/input_list"
-store_tee_append="${scratch_directory}/tee_append"
-store_fzf_port="${scratch_directory}/fzf_port"
-store_file_contents="${scratch_directory}/file_content"
-store_skip_count="${scratch_directory}/skip_count"
-store_history_counter="${scratch_directory}/history_counter"
-store_ppid="${scratch_directory}/ppid"
-store_pids="${scratch_directory}/pids"
-store_fuzzy_search_string="${scratch_directory}/fuzzy_search_string"
-store_search_string="${scratch_directory}/search_string"
-
-# Debug directory
-debug_directory=$(mktemp -dt "$date_prefix.gh_find_code.debug") || die "Can't create debug directory."
-store_bat_debug="${debug_directory}/bat_debug"
-store_grep_extended_debug="${debug_directory}/grep_extended_debug"
-store_gh_search_debug="${debug_directory}/gh_search_debug"
-store_gh_content_debug="${debug_directory}/gh_content_debug"
 
 # This function validates the version of a tool.
 check_version() {
