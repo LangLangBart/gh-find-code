@@ -33,7 +33,6 @@ DARK_GRAY='\033[0;90m'
 
 debug_mode=false
 open_in_editor=false
-open_in_pager=false
 fzf_prompt="$(printf "%b❮❯ Code: %b" "$CYAN_NORMAL" "$COLOR_RESET")"
 fzf_prompt_fuzzy="$(printf "%b➤ Fuzzy:%b " "$CYAN_INVERT" "$COLOR_RESET")"
 
@@ -598,27 +597,25 @@ view_contents() {
 		} >"$store_bat_debug" 2>&1
 	fi
 
-	if $open_in_pager; then
-		bat_args+=("--paging=always")
-		# The 'less' pager can move to a specific line.
-		if [[ $(basename "${PAGER-}") =~ ^(bat|less)$ ]]; then
-			# The long option (--+…) for resetting the option to its default setting is broken in
-			# less version 643, so only use the short version.
-			# Ref: https://github.com/gwsw/less/issues/452
-			less_move_to_line=$((${line_numbers:-1} + 3))
-			less_args=(
-				"--clear-screen"        # to be painted from the top line down
-				"--RAW-CONTROL-CHARS"   # Raw color codes in output (don't remove color codes)
-				"-+F"                   # reset exiting if the entire file can be displayed on the first screen
-				"-+X"                   # reset screen clearing prevention
-				"+${less_move_to_line}" # as the variable name suggests
-			)
-			# https://github.com/sharkdp/bat#using-a-different-pager
-			bat_args+=("--pager='less ${less_args[*]}'")
-		fi
-	else
-		# Not needed in the pager, as these environment variables aren't expanded there.
-		bat_args+=("--terminal-width=${FZF_PREVIEW_COLUMNS:-$COLUMNS}")
+	bat_args+=("--paging=always")
+	# The 'less' pager can move to a specific line.
+	if [[ $(basename "${PAGER-}") =~ ^(bat|less)$ ]]; then
+		# The long option (--+…) for resetting the option to its default setting is broken in
+		# less version 643, so only use the short version.
+		# Ref: https://github.com/gwsw/less/issues/452
+		less_move_to_line=$((${line_numbers:-1} + 3))
+		less_args=(
+			"--clear-screen"        # to be painted from the top line down
+			"--RAW-CONTROL-CHARS"   # Raw color codes in output (don't remove color codes)
+			"-+F"                   # reset exiting if the entire file can be displayed on the first screen
+			"-+X"                   # reset screen clearing prevention
+			"+${less_move_to_line}" # as the variable name suggests
+		)
+		# If the '--status-column' flag is set in 'less', the horizontal line will be wrapped
+		# See: https://github.com/sharkdp/bat/issues/376
+		bat_args+=("--terminal-width=$((${FZF_PREVIEW_COLUMNS:-$COLUMNS} - 2))")
+		# https://github.com/sharkdp/bat#using-a-different-pager
+		bat_args+=("--pager='less ${less_args[*]}'")
 	fi
 	eval command bat "${bat_args[*]}" "${store_file_contents}_${index}_fetched"
 }
@@ -682,13 +679,13 @@ view_history_commands() {
 		echo 'change-prompt($fzf_prompt)+change-preview-window(+\{1}+3/3)+change-preview:\view_contents \{}'" \
 	--bind "ctrl-n:execute-silent(next)+refresh-preview+next-history" \
 	--bind "ctrl-p:execute-silent(previous)+refresh-preview+prev-history" \
-	--bind 'ctrl-o:execute:[[ -n {fzf:query} && -n {} ]] && open_in_editor=true view_contents {}' \
+	--bind $'ctrl-o:execute:[[ $FZF_MATCH_COUNT -ge 1 ]] && open_in_editor=true view_contents {}' \
 	--bind 'ctrl-r:reload:gh_user_limit=100;gh_query {fzf:query}' \
 	--bind "ctrl-t:transform:[[ ! \$FZF_PROMPT == \"$fzf_prompt\" ]] &&
 		echo 'rebind(change)+change-prompt($fzf_prompt)+disable-search+transform-query:echo \{fzf:query} > $store_fuzzy_search_string; cat $store_search_string' ||
 		echo 'unbind(change)+change-prompt($fzf_prompt_fuzzy)+enable-search+transform-query:echo \{fzf:query} > $store_search_string; cat $store_fuzzy_search_string'" \
 	--bind 'ctrl-x:execute-silent:open_query_in_browser {fzf:query}' \
-	--bind 'enter:execute:[[ -n {fzf:query} && -n {} ]] && open_in_pager=true view_contents {}' \
+	--bind $'enter:execute:[[ $FZF_MATCH_COUNT -ge 1 ]] && view_contents {}' \
 	--bind 'esc:become:' \
 	--bind 'scroll-up:offset-up,scroll-down:offset-down' \
 	--bind "tab:change-prompt($fzf_prompt)+change-preview(view_contents {})+change-preview-window:hidden:<70(hidden)|+{1}+3/3" \
