@@ -58,7 +58,7 @@ min_gh_version="2.37.0"
 # requires 'urllib.parse'
 # https://docs.python.org/3/library/urllib.parse.html
 min_python_version="3.0.0"
-
+python_executable=""
 # Creating temporary files. The current setup works but is very verbose. An attempt to use
 # associative arrays with 'declare -A' was unsuccessful as I couldn't access the associated
 # filename in child processes.
@@ -222,15 +222,24 @@ shift "$((OPTIND - 1))"
 
 # ====================== check requirements =======================
 
-for tool in bat column curl fzf gh python; do
+for tool in bat column curl fzf gh; do
 	if ! command -v $tool >/dev/null; then
 		die "'$tool' was not found."
 	fi
 done
-
 check_version fzf "$min_fzf_version"
 check_version gh "$min_gh_version"
-check_version python "$min_python_version"
+
+# Iterate over the possible python versions and assign python_executable
+for python_version in python python3; do
+	if command -v $python_version >/dev/null &&
+		[[ -z $(check_version "$python_version" "$min_python_version" echo) ]]; then
+		python_executable="$python_version"
+		break
+	fi
+done
+# If no suitable python version was found, terminate the script
+[[ -z ${python_executable} ]] && die "No suitable 'python' version found."
 
 # Verify if there are at least two spaces between columns. The delimiter in 'fzf' is set to
 # '\t' or '\s\s+' to separate fields. By default, the 'column' command should separate any
@@ -258,10 +267,10 @@ curl_custom() {
 sanitize_input() {
 	if [[ -n ${2-} ]]; then
 		# replace spaces with '+' and special characters with percent-encoded values
-		command python -c "import urllib.parse; print(urllib.parse.quote_plus('''$1'''))"
+		command "$python_executable" -c "import urllib.parse; print(urllib.parse.quote_plus('''$1'''))"
 	else
 		# replaces spaces with '%20' and special characters with percent-encoded values
-		command python -c "import urllib.parse; print(urllib.parse.quote('''$1'''))"
+		command "$python_executable" -c "import urllib.parse; print(urllib.parse.quote('''$1'''))"
 	fi
 }
 
@@ -274,7 +283,7 @@ open_query_in_browser() {
 	local sanitized_query
 	sanitized_query=$(sanitize_input "$1" true)
 	if [ -n "$sanitized_query" ]; then
-		command python -m webbrowser "https://github.com/search?q=${sanitized_query}&type=code"
+		command "$python_executable" -m webbrowser "https://github.com/search?q=${sanitized_query}&type=code"
 	else
 		play_notification_sound
 	fi
