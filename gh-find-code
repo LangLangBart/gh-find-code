@@ -291,7 +291,7 @@ open_query_in_browser() {
 
 gh_query() {
 	local data input="$*"
-	local items total_count skip_count
+	local items total_count total_count_si_format skip_count
 	local index owner_repo_name file_name file_path patterns
 	local file_extension sanitized_patterns sanitized_owner_repo_name sanitized_file_path
 	local matched_line error_encountered redirect_location index_color
@@ -383,6 +383,20 @@ gh_query() {
 			: >"$store_skip_count"
 			# first line
 			IFS=' ' read -r items total_count
+			# A way to shorten large numbers using SI prefixes.
+			# https://www.bipm.org/en/measurement-units/si-prefixes
+			total_count_si_format=$(
+				if ((total_count >= 1000000000)); then
+					printf "%dG" $((total_count / 1000000000))
+				elif ((total_count >= 1000000)); then
+					printf "%dM" $((total_count / 1000000))
+				elif ((total_count >= 1000)); then
+					printf "%dk" $((total_count / 1000))
+				else
+					printf "%d" "$total_count"
+				fi
+			)
+
 			# listed items
 			while IFS=$'\t' read -r index owner_repo_name file_name file_path patterns; do
 				! command kill -0 "$PPID" 2>/dev/null && break
@@ -438,7 +452,7 @@ gh_query() {
 				fi
 				curl_custom "transform-header:printf '%b%s/%s of %s collected...%b' '$DARK_GRAY' \
 					'$index' '$((total_count > gh_user_limit ? gh_user_limit : total_count))' \
-					'$total_count' '$COLOR_RESET'"
+					'$total_count_si_format' '$COLOR_RESET'"
 
 				if $debug_mode; then
 					redirect_location="${store_grep_extended_debug}_${index}"
@@ -526,12 +540,12 @@ gh_query() {
 					'$RED_NORMAL' '$owner_repo_name' '$file_path' '$COLOR_RESET')+change-preview:cat '$store_gh_content_debug'"
 			elif ((skip_count > 0)); then
 				curl_custom "reload(cat $store_input_list)+transform-header:printf '%b%s of ∑ %s%b (Skipped: %d %s [%s])%b | ? help · esc quit%b\n' \
-					'$GREEN_NORMAL' '$items' '$total_count' '$RED_NORMAL' '$skip_count' \
+					'$GREEN_NORMAL' '$items' '$total_count_si_format' '$RED_NORMAL' '$skip_count' \
 					'$([[ $skip_count -gt 1 ]] && echo items || echo item)' \
 					'$(paste -sd "," "$store_skip_count")' '$DARK_GRAY' '$COLOR_RESET'"
 			else
 				curl_custom "reload(cat $store_input_list)+transform-header:printf '%b%s of ∑ %s%b | ? help · esc quit%b\n' \
-					'$GREEN_NORMAL' '$items' '$total_count' '$DARK_GRAY' '$COLOR_RESET'"
+					'$GREEN_NORMAL' '$items' '$total_count_si_format' '$DARK_GRAY' '$COLOR_RESET'"
 			fi
 
 		} <<<"$data"

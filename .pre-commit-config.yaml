@@ -18,7 +18,7 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
   - repo: https://github.com/crate-ci/typos
-    rev: v1.17.0
+    rev: typos-v0.10.21
     hooks:
       - id: typos
         args: [--format, brief, --write-changes]
@@ -45,7 +45,7 @@ repos:
         name: markdown link check
         args: [--quiet]
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v3.13.0
+    rev: v3.14.1
     hooks:
       - id: commitizen
         stages: [commit-msg]
