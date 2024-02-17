@@ -143,7 +143,7 @@ export FZF_DEFAULT_OPTS="
   using the shortcut keys <kbd>⌃ Control</kbd> + <kbd>N</kbd> (next) and <kbd>⌃ Control</kbd> +
   <kbd>P</kbd> (previous). All commands can be viewed with <kbd>⌃ Control</kbd> + <kbd>H</kbd>. In
   case of duplicates, only the most recent entry is preserved. The maximum number of command entries
-  stored is 30.
+  stored is 100.
 
 ### Pager
 - If the `PAGER` environment variable is set to `less` or `bat`, when opening the destination file,
