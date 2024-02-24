@@ -700,8 +700,8 @@ view_history_commands() {
 	--bind "ctrl-h:transform:[[ ! \$FZF_PROMPT =~ History ]] &&
 		echo 'change-prompt(History: )+change-preview-window(+\{2}+3/3)+change-preview:view_history_commands' ||
 		echo 'change-prompt($fzf_prompt)+change-preview-window(+\{1}+3/3)+change-preview:\view_contents \{}'" \
-	--bind "ctrl-n:execute-silent(next)+refresh-preview+next-history" \
-	--bind "ctrl-p:execute-silent(previous)+refresh-preview+prev-history" \
+	--bind "ctrl-n:execute-silent(next)+refresh-preview+next-history+beginning-of-line" \
+	--bind "ctrl-p:execute-silent(previous)+refresh-preview+prev-history+beginning-of-line" \
 	--bind $'ctrl-o:execute:[[ $FZF_MATCH_COUNT -ge 1 ]] && open_in_editor=true view_contents {}' \
 	--bind 'ctrl-r:reload:gh_user_limit=100;gh_query {fzf:query}' \
 	--bind "ctrl-t:transform:[[ ! \$FZF_PROMPT == \"$fzf_prompt\" ]] &&
