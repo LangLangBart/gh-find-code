@@ -293,7 +293,7 @@ gh_query() {
 	local data input="$*"
 	local items total_count total_count_si_format skip_count
 	local index owner_repo_name file_name file_path patterns
-	local file_extension sanitized_patterns sanitized_owner_repo_name sanitized_file_path
+	local file_extension bat_langs sanitized_patterns sanitized_owner_repo_name sanitized_file_path
 	local matched_line error_encountered redirect_location index_color
 	local base_name dir_name
 	declare -a line_numbers
@@ -408,11 +408,11 @@ gh_query() {
 				fi
 				# This covers special cases where syntax highlighting requires a leading
 				# dot, such as filenames like 'zshrc', '.zshrc' or 'macos.zshrc'
-				if command bat --list-languages --color=never |
-					command grep --quiet --word-regexp "\.${file_extension}"; then
+				bat_langs=$(command bat --list-languages --color=never |
+					command awk -F ":" '{print $2}' | command tr ',' '\n')
+				if command grep --quiet --word-regexp "^\.${file_extension}$" <<<"$bat_langs"; then
 					file_extension=".${file_extension}"
-				elif command bat --list-languages --color=never |
-					command grep --quiet --word-regexp "\.${file_name}"; then
+				elif command grep --quiet --word-regexp "^\.${file_name}$" <<<"$bat_langs"; then
 					file_extension=".${file_name}"
 				fi
 
