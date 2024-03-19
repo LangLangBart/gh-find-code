@@ -70,12 +70,12 @@ store_input_list="${scratch_directory}/input_list"
 store_tee_append="${scratch_directory}/tee_append"
 store_file_contents="${scratch_directory}/file_content"
 store_skip_count="${scratch_directory}/skip_count"
-store_history_counter="${scratch_directory}/history_counter"
 store_ppid="${scratch_directory}/ppid"
 store_pids="${scratch_directory}/pids"
 store_fuzzy_search_string="${scratch_directory}/fuzzy_search_string"
 store_search_string="${scratch_directory}/search_string"
-store_gh_find_code_history_tmp="${scratch_directory}/gh_find_code_history"
+store_gh_find_code_history_tmp="${scratch_directory}/gh_find_code_history_tmp"
+store_hold_gh_query_loop="${scratch_directory}/hold_gh_query_loop"
 
 # Debug directory
 debug_directory=$(mktemp -dt "$date_prefix.gh_find_code.debug") || die "Can't create debug directory."
@@ -87,7 +87,6 @@ store_gh_content_debug="${debug_directory}/gh_content_debug"
 # =========================== basics ============================
 
 cleanup() {
-	$debug_mode && printf "%bDebug mode was ON, the following files weren't deleted.%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
 	if [ -s "$store_ppid" ]; then
 		while read -r ppid; do
 			if command kill -0 "$ppid" 2>/dev/null; then
@@ -109,10 +108,22 @@ cleanup() {
 	# in the same pipeline - https://shellcheck.net/wiki/SC2094. This could lead to a race
 	# condition, resulting in the file being erased. It's crucial to run the process before
 	# deleting the scratch_directory.
-	[[ -f $gh_find_code_history ]] && command tail -r "$gh_find_code_history" |
-		command awk '!x[$0]++' | command tail -r >"$store_gh_find_code_history_tmp" &&
-		command mv "$store_gh_find_code_history_tmp" "$gh_find_code_history"
+	# Check if the file exists before proceeding
+	if [[ -f $gh_find_code_history ]]; then
+		command tail -r "$gh_find_code_history" | command awk '!x[$0]++' |
+			command grep --invert-match '^$' | command tail -r >"$store_gh_find_code_history_tmp"
 
+		# Check if the temporary file was created successfully
+		if [[ -f $store_gh_find_code_history_tmp ]]; then
+			command mv "$store_gh_find_code_history_tmp" "$gh_find_code_history"
+		else
+			$debug_mode && echo "Error: Failed to create temporary file."
+		fi
+	else
+		$debug_mode && echo "Error: File '$gh_find_code_history' not found."
+	fi
+
+	$debug_mode && printf "%bDebug mode was ON, the following files weren't deleted.%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
 	command rm -rf "$scratch_directory" 2>/dev/null
 	if ! $debug_mode; then
 		command rm -rf "$debug_directory" 2>/dev/null
@@ -147,9 +158,9 @@ check_version() {
 	IFS='.' read -ra threshold_parts <<<"$threshold"
 
 	for i in "${!threshold_parts[@]}"; do
-		if ((i >= ${#ver_parts[@]})) || (("${ver_parts[i]}" < "${threshold_parts[i]}")); then
+		if ((i >= ${#ver_parts[@]})) || ((ver_parts[i] < threshold_parts[i])); then
 			$on_error "Your '$tool' version '$user_version' is insufficient. The minimum required version is '$threshold'."
-		elif (("${ver_parts[i]}" > "${threshold_parts[i]}")); then
+		elif ((ver_parts[i] > threshold_parts[i])); then
 			break
 		fi
 	done
@@ -387,9 +398,7 @@ gh_query() {
 			# A way to shorten large numbers using SI prefixes.
 			# https://www.bipm.org/en/measurement-units/si-prefixes
 			total_count_si_format=$(
-				if ((total_count >= 1000000000)); then
-					printf "%dG" $((total_count / 1000000000))
-				elif ((total_count >= 1000000)); then
+				if ((total_count >= 1000000)); then
 					printf "%dM" $((total_count / 1000000))
 				elif ((total_count >= 1000)); then
 					printf "%dk" $((total_count / 1000))
@@ -401,6 +410,7 @@ gh_query() {
 			# listed items
 			while IFS=$'\t' read -r index owner_repo_name file_name file_path patterns; do
 				! command kill -0 "$PPID" 2>/dev/null && break
+
 				index_color="$WHITE_NORMAL"
 				file_extension="null"
 				# Check if the file has a file extension and assign it.
@@ -451,6 +461,13 @@ gh_query() {
 				if command grep --quiet --word-regexp "$index" "$store_skip_count"; then
 					continue
 				fi
+
+				# These lines are used as a mechanism to stop the loop from continuing to send POST
+				# requests, otherwise it will block the 'view_history_commands' function
+				while [[ $(<"$store_hold_gh_query_loop") == "hold" ]]; do
+					sleep 0.1
+				done
+
 				curl_custom "transform-header:printf '%b%s/%s of %s collected...%b' '$DARK_GRAY' \
 					'$index' '$((total_count > gh_user_limit ? gh_user_limit : total_count))' \
 					'$total_count_si_format' '$COLOR_RESET'"
@@ -506,8 +523,8 @@ gh_query() {
 				else
 					base_name="…${file_path: -30}"
 				fi
-				printf "%s\t%s\t%s\t%b%-3d%b\t%b%s%b/%b%s%b\t%b%s/%b%s%b\n" \
-					"${line_numbers:-1}" "$(get_history_count)" "$file_extension" "$index_color" \
+				printf "%s\t%s\t%b%-3d%b\t%b%s%b/%b%s%b\t%b%s/%b%s%b\n" \
+					"${line_numbers:-1}" "$file_extension" "$index_color" \
 					"$index" "$COLOR_RESET" "$CYAN_NORMAL" "${owner_repo_name%/*}" "$COLOR_RESET" \
 					"$CYAN_BOLD" "${owner_repo_name#*/}" "$COLOR_RESET" "$MAGENTA_NORMAL" \
 					"$dir_name" "$MAGENTA_BOLD" "$base_name" "$COLOR_RESET" |
@@ -559,7 +576,7 @@ view_contents() {
 	declare -a line_numbers bat_args editor_args less_args
 	local file_extension index file_path
 	local file_name tempfile_with_ext less_move_to_line
-	IFS=$'\t' read -r _ _ file_extension index _ file_path < <(sed -E $'s/[[:space:]]{2,}/\t/g' <<<"$@")
+	IFS=$'\t' read -r _ file_extension index _ file_path < <(sed -E $'s/[[:space:]]{2,}/\t/g' <<<"$@")
 	# Remove trailing whitespace that was caused by the '%-3d' placeholder in 'printf'.
 	index=$(tr -d '[:space:]' <<<"$index")
 
@@ -644,103 +661,90 @@ view_contents() {
 	eval command bat "${bat_args[*]}" "${store_file_contents}_${index}_fetched"
 }
 
-get_history_count() {
-	if [ ! -s "$store_history_counter" ]; then
-		# Initialization is set to zero to prevent any highlighting. Highlighting only starts when
-		# 'ctrl-p' or 'ctrl-n' are pressed and are within the range of 1 and the total line count of
-		# the gh_find_code_history.txt file.
-		echo 0
-	else
-		command cat "$store_history_counter"
-	fi
-}
-
-next() {
-	counter=$(get_history_count)
-	if [[ $counter -gt 0 ]]; then
-		((counter--))
-		echo "$counter" >"$store_history_counter"
-	fi
-}
-
-previous() {
-	counter=$(get_history_count)
-	if [[ $counter -lt $(sed -n '$=' "$gh_find_code_history") ]]; then
-		((counter++))
-		echo "$counter" >"$store_history_counter"
-	fi
+fzf_basic_style() {
+	# Useful tool:  https://vitormv.github.io/fzf-themes/
+	# IMPORTANT: anything after "$@" will overwrite options in the actual command
+	command fzf -- \
+		--ansi \
+		--bind 'scroll-up:offset-up,scroll-down:offset-down' \
+		--bind "ctrl-c:execute:while read -r pid; do kill \$pid 2>/dev/null; done <$store_ppid" \
+		--border block \
+		--color 'bg+:233,bg:235,gutter:235,border:238,scrollbar:235' \
+		--color 'preview-bg:234,preview-border:236,preview-scrollbar:237' \
+		--color 'fg+:255,fg:regular:250,hl:40,hl+:40' \
+		--color 'pointer:9,spinner:92,marker:46' \
+		--color 'prompt:14,info:40,header:255:regular,label:bold' \
+		--ellipsis '' \
+		--height=100% \
+		--header-lines 0 \
+		--no-multi \
+		--info hidden \
+		--layout reverse \
+		--scroll-off 3 \
+		--scrollbar '│▐' \
+		--separator '' \
+		--unicode \
+		"$@"
 }
 
 view_history_commands() {
-	counter=$(get_history_count)
-	if [ -s "$gh_find_code_history" ]; then
-		header_info=$(printf "%s (%s/%s) │ sort desc (↓) │ ^n (next) / ^p (previous)" \
-			"${gh_find_code_history##*/}" "$counter" "$(sed -n '$=' "$gh_find_code_history")")
-		command bat --color=always \
-			--highlight-line="$counter" \
-			--terminal-width="${FZF_PREVIEW_COLUMNS:-$COLUMNS}" \
-			--file-name="$header_info" \
-			--style=numbers,header-filename,grid <<<"$(tail -r "$gh_find_code_history")"
-	else
-		echo 'No history entries yet. Check back on your next run.'
+	local header_string header_color history_command selection
+	if [[ ! -s $gh_find_code_history ]]; then
+		header_color="yellow"
+		header_string="No history entries yet. Check back on your next run. Press 'esc' to exit."
 	fi
-}
+	echo "hold" >"$store_hold_gh_query_loop"
+	history_command=$'command tail -r "$gh_find_code_history" | command nl -n ln -w 3 -s "\t"'
+	selection=$(
+		: | fzf_basic_style \
+			--bind "start:execute-silent(echo \${PPID-} >>$store_ppid)+reload:$history_command" \
+			--bind 'ctrl-h:abort' \
+			--bind "ctrl-d:reload:grep --fixed-strings --word-regexp --invert-match {2..} $gh_find_code_history >$store_gh_find_code_history_tmp; mv $store_gh_find_code_history_tmp $gh_find_code_history; $history_command" \
+			--bind 'esc:abort' \
+			--color "header:${header_color:--1}" \
+			--info inline \
+			--preview-window 'hidden' \
+			--prompt 'Select a History Entry > ' \
+			--header "${header_string:-"enter select · ^d delete a line · esc quit"}"
+	)
 
-# ===================== lets begin ========================
+	if [[ -n $selection ]]; then
+		selection="$(command awk '{$1=""; sub(/^[ \t]+/, ""); print $0}' <<<"$selection")"
+		curl_custom "change-query($selection)+beginning-of-line"
+	fi
+	: >"$store_hold_gh_query_loop"
+}
 
 # https://github.com/junegunn/fzf/issues/3353
 # NOTE: The 'change-preview-window' action in 'transform' should precede 'change-preview'.
 # NOTE: In the transform action, placeholders and functions using placeholders as arguments must be
 # escaped, e.g. '\view_contents \{}'
-
-: | command fzf \
-	--ansi \
-	--bind $'start:execute-silent(echo ${PPID-} > $store_ppid)+reload:gh_query {fzf:query}' \
+: | fzf_basic_style \
+	--bind "start:execute-silent(echo \${PPID-} >>$store_ppid)+reload:gh_query {fzf:query}" \
 	--bind "change:first+reload:sleep 0.5; gh_query {fzf:query}" \
-	--bind 'ctrl-b:execute-silent:gh browse --repo {5} {6}:{1}' \
-	--bind "ctrl-h:transform:[[ ! \$FZF_PROMPT =~ History ]] &&
-		echo 'change-prompt(History: )+change-preview-window(+\{2}+3/3)+change-preview:view_history_commands' ||
-		echo 'change-prompt($fzf_prompt)+change-preview-window(+\{1}+3/3)+change-preview:\view_contents \{}'" \
-	--bind "ctrl-n:execute-silent(next)+refresh-preview+next-history+beginning-of-line" \
-	--bind "ctrl-p:execute-silent(previous)+refresh-preview+prev-history+beginning-of-line" \
+	--bind 'ctrl-b:execute-silent:gh browse --repo {4} {5}:{1}' \
+	--bind 'ctrl-h:execute:view_history_commands' \
 	--bind $'ctrl-o:execute:[[ $FZF_MATCH_COUNT -ge 1 ]] && open_in_editor=true view_contents {}' \
 	--bind 'ctrl-r:reload:gh_user_limit=100;gh_query {fzf:query}' \
 	--bind "ctrl-t:transform:[[ ! \$FZF_PROMPT == \"$fzf_prompt\" ]] &&
 		echo 'rebind(change)+change-prompt($fzf_prompt)+disable-search+transform-query:echo \{fzf:query} > $store_fuzzy_search_string; cat $store_search_string' ||
 		echo 'unbind(change)+change-prompt($fzf_prompt_fuzzy)+enable-search+transform-query:echo \{fzf:query} > $store_search_string; cat $store_fuzzy_search_string'" \
 	--bind 'ctrl-x:execute-silent:open_query_in_browser {fzf:query}' \
-	--bind $'enter:execute:[[ $FZF_MATCH_COUNT -ge 1 ]] && view_contents {}' \
+	--bind $'enter:execute:[[ $FZF_MATCH_COUNT -ge 1 ]] && view_contents {} >/dev/tty' \
 	--bind 'esc:become:' \
-	--bind 'scroll-up:offset-up,scroll-down:offset-down' \
 	--bind "tab:change-prompt($fzf_prompt)+change-preview(view_contents {})+change-preview-window:hidden:<70(hidden)|+{1}+3/3" \
 	--bind "?:transform:[[ ! \$FZF_PROMPT =~ Help ]] &&
 		echo 'change-prompt(Help: )+change-preview-window(~0:+1)+change-preview:print_help_text' ||
 		echo 'change-prompt($fzf_prompt)+change-preview-window(+\{1}+3/3)+change-preview:\view_contents \{}'" \
-	--border block \
-	--color 'bg+:233,bg:235,gutter:235,border:238,scrollbar:235' \
-	--color 'preview-bg:234,preview-border:236,preview-scrollbar:237' \
-	--color 'fg+:255,fg:regular:250,hl:40,hl+:40' \
-	--color 'pointer:9,spinner:92,marker:46' \
-	--color 'prompt:14,info:40,header:255:regular,label:bold' \
 	--delimiter '\t|\s\s+' \
 	--disabled \
-	--ellipsis '' \
-	--height=100% \
-	--header-lines 0 \
 	--history "$gh_find_code_history" \
-	--history-size 100 \
-	--info hidden \
-	--layout reverse \
+	--history-size 250 \
 	--listen \
-	--no-multi \
 	--nth=2..,.. \
 	--pointer '▶' \
 	--preview 'view_contents {}' \
 	--preview-window 'border-block:~3:+{1}+3/3:nohidden:right:nowrap:65%:<70(bottom:75%)' \
 	--prompt "$fzf_prompt" \
 	--query "$*" \
-	--scroll-off 3 \
-	--scrollbar '│▐' \
-	--separator '' \
-	--unicode \
-	--with-nth=4..
+	--with-nth=3..
