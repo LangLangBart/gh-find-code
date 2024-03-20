@@ -694,18 +694,20 @@ view_history_commands() {
 		header_string="No history entries yet. Check back on your next run. Press 'esc' to exit."
 	fi
 	echo "hold" >"$store_hold_gh_query_loop"
+	# IMPORTANT: There was an unsuccessful attempt to add a delete command to eliminate a line from
+	# the history. It appears that 'fzf' has loaded the 'gh_find_code_history.txt' into its buffer
+	# and doesn't reload it prior to appending the new entry, thus any deletions are reverted.
 	history_command=$'command tail -r "$gh_find_code_history" | command nl -n ln -w 3 -s "\t"'
 	selection=$(
 		: | fzf_basic_style \
 			--bind "start:execute-silent(echo \${PPID-} >>$store_ppid)+reload:$history_command" \
 			--bind 'ctrl-h:abort' \
-			--bind "ctrl-d:reload:grep --fixed-strings --word-regexp --invert-match {2..} $gh_find_code_history >$store_gh_find_code_history_tmp; mv $store_gh_find_code_history_tmp $gh_find_code_history; $history_command" \
 			--bind 'esc:abort' \
 			--color "header:${header_color:--1}" \
 			--info inline \
 			--preview-window 'hidden' \
 			--prompt 'Select a History Entry > ' \
-			--header "${header_string:-"enter select · ^d delete a line · esc quit"}"
+			--header "${header_string:-"enter select · esc quit"}"
 	)
 
 	if [[ -n $selection ]]; then
