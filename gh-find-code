@@ -267,6 +267,14 @@ if [[ $(command column -t <<<"A Z" 2>/dev/null) != *"  "* ]]; then
 	die "Your 'column' command does not separate columns with at least two spaces. Please report this issue, stating your operating system and 'column' version."
 fi
 
+# If the history file is empty and MAX_LINES_HISTORY is greater than zero, add some examples.
+if [[ ! -s $gh_find_code_history ]] && ((MAX_LINES_HISTORY)); then
+	cat <<'EOF' >"$gh_find_code_history"
+repo:junegunn/fzf FZF_PORT
+extension:rs "Hello, world!"
+EOF
+fi
+
 # ===================== helper functions ==========================
 
 # send a POST request to fzf
