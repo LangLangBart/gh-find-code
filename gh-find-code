@@ -214,7 +214,7 @@ shift "$((OPTIND - 1))"
 
 # ====================== check requirements =======================
 
-for tool in bat column curl fzf gh; do
+for tool in bat column curl fzf gh nl tail; do
 	if ! command -v $tool >/dev/null; then
 		die "'$tool' was not found."
 	fi
@@ -551,7 +551,7 @@ gh_query() {
 				fi
 				if ! $update_preview_window_size; then
 					update_preview_window_size=true
-					# we already know the number of listed results anc can adopt the preview size once
+					# adjustment of he preview size once
 					curl_custom "transform:preview_transformer $total_listed_results"
 				fi
 			done
@@ -704,6 +704,7 @@ fzf_basic_style() {
 		--scroll-off 3 \
 		--scrollbar '│▐' \
 		--separator '' \
+		--sync \
 		--unicode \
 		"$@"
 }
@@ -727,9 +728,9 @@ view_history_commands() {
 			--color "header:${header_color:--1}" \
 			--header "${header_string:-"enter select · ^d delete a line · esc quit"}" \
 			--info inline \
-			--scheme history \
 			--preview-window 'hidden' \
-			--prompt 'Select a History Entry > '
+			--prompt 'Select a History Entry > ' \
+			--scheme history
 	)
 
 	if [[ -n $selection ]]; then
@@ -768,7 +769,7 @@ preview_transformer() {
 		echo 'rebind(change)+change-prompt($default_fzf_prompt)+disable-search+transform-query:echo \{fzf:query} > $store_fuzzy_search_string; cat $store_search_string' ||
 		echo 'unbind(change)+change-prompt($fzf_prompt_fuzzy)+enable-search+transform-query:echo \{fzf:query} > $store_search_string; cat $store_fuzzy_search_string'" \
 	--bind 'ctrl-x:execute-silent:open_query_in_browser {fzf:query}' \
-	--bind $'enter:execute:[[ $FZF_MATCH_COUNT -ge 1 ]] && view_contents {} >/dev/tty' \
+	--bind $'enter:execute:[[ $FZF_MATCH_COUNT -ge 1 ]] && view_contents {}' \
 	--bind 'esc:become:' \
 	--bind "tab:change-prompt($default_fzf_prompt)+change-preview(view_contents {})+change-preview-window:hidden:<70(hidden)|+{1}+3/3" \
 	--bind "?:transform:[[ ! \$FZF_PROMPT =~ Help ]] &&
