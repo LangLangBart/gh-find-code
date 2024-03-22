@@ -18,18 +18,32 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
   - repo: https://github.com/crate-ci/typos
-    rev: typos-v0.10.21
+    rev: v1.19.0
     hooks:
       - id: typos
         args: [--format, brief, --write-changes]
-  - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.9.0.6
+  - repo: local
     hooks:
-      # doesn't require a local version of 'shellcheck'
-      - id: shellcheck
+      - id: binaries
+        name: binary check for shellcheck/shfmt
+        entry: |
+          bash -c '
+          for tool in shellcheck shfmt; do
+            if ! command -v shellcheck &> /dev/null; then
+              echo "$tool could not be found, please install it"
+              exit 1
+            fi
+          done'
+        language: system
+        pass_filenames: false
+        fail_fast: true
   - repo: https://github.com/jumanjihouse/pre-commit-hooks
     rev: 3.0.0
     hooks:
+      # requires a local version of 'shellcheck'
+      - id: shellcheck
+        name: shellcheck
+        args: [--external-source, --norc]
       # requires a local version of 'shfmt'
       - id: shfmt
         name: shfmt
@@ -39,13 +53,13 @@ repos:
     hooks:
       - id: yamlfix
   - repo: https://github.com/tcort/markdown-link-check
-    rev: v3.11.2
+    rev: v3.12.1
     hooks:
       - id: markdown-link-check
         name: markdown link check
         args: [--quiet]
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v3.14.1
+    rev: v3.20.0
     hooks:
       - id: commitizen
         stages: [commit-msg]

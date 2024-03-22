@@ -18,6 +18,7 @@ jobs:
         uses: luizm/action-sh-checker@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHELLCHECK_OPTS: --external-sources --norc
           SHFMT_OPTS: --simplify --indent 0 --case-indent
         with:
           sh_checker_comment: true
