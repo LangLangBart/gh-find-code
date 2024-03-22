@@ -718,6 +718,7 @@ view_history_commands() {
 	history_command=$'command tail -r "$gh_find_code_history" | command nl -n ln -w 3 -s "\t"'
 	selection=$(
 		: | fzf_basic_style \
+			--bind "change:first" \
 			--bind "start:execute-silent(echo \${PPID-} >>$store_ppid)+reload:$history_command" \
 			--bind "ctrl-d:reload:grep --fixed-strings --line-regexp --invert-match {2..} $gh_find_code_history >$store_gh_find_code_history_tmp; mv $store_gh_find_code_history_tmp $gh_find_code_history; $history_command" \
 			--bind 'ctrl-h:abort' \
