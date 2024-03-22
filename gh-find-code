@@ -311,7 +311,7 @@ gh_query() {
 	local data items total_count total_count_si_format skip_count
 	local index owner_repo_name file_name file_path patterns
 	local file_extension bat_langs sanitized_patterns sanitized_owner_repo_name sanitized_file_path
-	local matched_line error_encountered redirect_location index_color
+	local matched_line error_encountered update_preview_window_size redirect_location index_color
 	local base_name dir_name
 	declare -a line_numbers
 	if [[ -z $FZF_QUERY ]]; then
@@ -402,6 +402,7 @@ gh_query() {
 		echo $! >>"$store_pids"
 		{
 			error_encountered=false
+			update_preview_window_size=false
 			skip_count=0
 			redirect_location="/dev/null"
 			# Ensure the file is empty before initiating the loop, as it appends the
@@ -421,6 +422,7 @@ gh_query() {
 					printf "%d" "$total_count"
 				fi
 			)
+			total_listed_results=$((total_count > gh_user_limit ? gh_user_limit : total_count))
 
 			# listed items
 			while IFS=$'\t' read -r index owner_repo_name file_name file_path patterns; do
@@ -484,8 +486,7 @@ gh_query() {
 				done
 
 				curl_custom "transform-header:printf '%b%s/%s of %s collected...%b' '$DARK_GRAY' \
-					'$index' '$((total_count > gh_user_limit ? gh_user_limit : total_count))' \
-					'$total_count_si_format' '$COLOR_RESET'"
+					'$index' '$total_listed_results' '$total_count_si_format' '$COLOR_RESET'"
 
 				if $debug_mode; then
 					redirect_location="${store_grep_extended_debug}_${index}"
@@ -547,6 +548,11 @@ gh_query() {
 
 				if $error_encountered; then
 					break
+				fi
+				if ! $update_preview_window_size; then
+					update_preview_window_size=true
+					# we already know the number of listed results anc can adopt the preview size once
+					curl_custom "transform:preview_transformer $total_listed_results"
 				fi
 			done
 			# Format the input list into a structured table.
@@ -732,13 +738,26 @@ view_history_commands() {
 	: >"$store_hold_gh_query_loop"
 }
 
-# https://github.com/junegunn/fzf/issues/3353
+preview_transformer() {
+	# The default case is a size of 66% (2/3) of the preview window.
+	lines=$((2 * FZF_LINES / 3))
+	# If there is more empty space, we can increase the preview window.
+	empty_space=$((FZF_LINES - ${1:-FZF_MATCH_COUNT} - 5))
+	[[ $empty_space -gt $lines ]] && lines=$empty_space
+	# If there is not enough space, the preview window needs to shrink.
+	absolute_minimum=$((FZF_LINES - 7))
+	[[ $absolute_minimum -lt $lines ]] && lines=$absolute_minimum
+	# Ensure it's a full digit without any decimals.
+	echo "change-preview-window:${lines%.*}"
+}
+
 # NOTE: The 'change-preview-window' action in 'transform' should precede 'change-preview'.
 # NOTE: In the transform action, placeholders and functions using placeholders as arguments must be
 # escaped, e.g. '\view_contents \{}'
 : | fzf_basic_style \
-	--bind "start:execute-silent(echo \${PPID-} >>$store_ppid)+reload:gh_query {fzf:query}" \
 	--bind "change:first+reload:sleep 0.5; gh_query {fzf:query}" \
+	--bind "resize:transform:preview_transformer" \
+	--bind "start:execute-silent(echo \${PPID-} >>$store_ppid)+reload:gh_query {fzf:query}" \
 	--bind 'ctrl-b:execute-silent:gh browse --repo {4} {5}:{1}' \
 	--bind 'ctrl-h:execute:view_history_commands' \
 	--bind $'ctrl-o:execute:[[ $FZF_MATCH_COUNT -ge 1 ]] && open_in_editor=true view_contents {}' \
@@ -760,7 +779,7 @@ view_history_commands() {
 	--nth=2..,.. \
 	--pointer '▶' \
 	--preview 'view_contents {}' \
-	--preview-window 'border-block:~3:+{1}+3/3:nohidden:right:nowrap:65%:<70(bottom:75%)' \
+	--preview-window 'border-block:~3:+{1}+3/3:nohidden:bottom:nowrap:66%' \
 	--prompt "$default_fzf_prompt" \
 	--query "$*" \
 	--with-nth=3..
