@@ -48,20 +48,19 @@ gh find-code [Flags] [Search query]
 | `-l`  | limit the number of listed results (default 30, max 100)      |
 | `-h`  | help                                                          |
 
-| Key Bindings fzf            | Description                          |
-| --------------------------- | ------------------------------------ |
-| <kbd>?</kbd>                | help                                 |
-| <kbd>ctrl</kbd><kbd>b</kbd> | open the file in the browser         |
-| <kbd>ctrl</kbd><kbd>h</kbd> | display the history commands         |
-| <kbd>ctrl</kbd><kbd>n</kbd> | next history command                 |
-| <kbd>ctrl</kbd><kbd>o</kbd> | open the file content in the editor  |
-| <kbd>ctrl</kbd><kbd>p</kbd> | previous history command             |
-| <kbd>ctrl</kbd><kbd>r</kbd> | reload with up to 100 results        |
-| <kbd>ctrl</kbd><kbd>t</kbd> | toggle between Code and Fuzzy search |
-| <kbd>ctrl</kbd><kbd>x</kbd> | open the search query in the browser |
-| <kbd>enter</kbd>            | open the file in the pager           |
-| <kbd>tab</kbd>              | toggle the file preview              |
-| <kbd>esc</kbd>              | quit                                 |
+| Key Bindings fzf            | Description                              |
+| --------------------------- | ---------------------------------------- |
+| <kbd>?</kbd>                | help                                     |
+| <kbd>ctrl</kbd><kbd>b</kbd> | open the file in the browser             |
+| <kbd>ctrl</kbd><kbd>h</kbd> | display the history commands             |
+| <kbd>ctrl</kbd><kbd>o</kbd> | open the file content in the editor      |
+| <kbd>ctrl</kbd><kbd>p</kbd> | replace query with "repo:<owner>/<name>" |
+| <kbd>ctrl</kbd><kbd>r</kbd> | reload with up to 100 results            |
+| <kbd>ctrl</kbd><kbd>t</kbd> | toggle between Code and Fuzzy search     |
+| <kbd>ctrl</kbd><kbd>x</kbd> | open the search query in the browser     |
+| <kbd>enter</kbd>            | open the file in the pager               |
+| <kbd>tab</kbd>              | toggle the file preview                  |
+| <kbd>esc</kbd>              | quit                                     |
 
 ---
 
@@ -139,11 +138,15 @@ export FZF_DEFAULT_OPTS="
   macOS?](https://superuser.com/questions/496090/how-to-use-alt-commands-in-a-terminal-on-os-x)
 
 ### History
-- The `gh_find_code_history.txt` file stores completed commands. These commands can be retrieved
-  using the shortcut keys <kbd>⌃ Control</kbd> + <kbd>N</kbd> (next) and <kbd>⌃ Control</kbd> +
-  <kbd>P</kbd> (previous). All commands can be viewed with <kbd>⌃ Control</kbd> + <kbd>H</kbd>. In
-  case of duplicates, only the most recent entry is preserved. The maximum number of command entries
-  stored is 250.
+- The `gh_find_code_history.txt` file stores successfully completed unique commands. All commands
+  can be viewed with <kbd>⌃ Control</kbd> + <kbd>H</kbd>. In case of duplicates, only the most
+  recent entry is preserved. The maximum number of command entries is 250 by default, but this can
+  be overridden by assigning a value to the `MAX_LINES_HISTORY` variable.
+
+```sh
+# Set the maximum number of stored commands to 1000
+MAX_LINES_HISTORY="1000" gh find-code
+```
 
 ### Pager
 - If the `PAGER` environment variable is set to `less` or `bat`, when opening the destination file,

@@ -39,9 +39,9 @@ fzf_prompt_error="$(printf "%bSEARCH FAILED:%b " "$RED_NORMAL" "$COLOR_RESET")"
 
 FZF_API_KEY="$(command head -c 32 /dev/urandom | command base64)"
 BAT_THEME=${BAT_THEME:-Monokai Extended}
+MAX_LINES_HISTORY=${MAX_LINES_HISTORY:-250}
 # Bash is required to use exported functions when the default shell is not bash.
 SHELL=$(which bash)
-# Used for the '--history' flag in fzf to store my commands and retrieve them when needed.
 gh_find_code_history="${BASH_SOURCE%/*}/gh_find_code_history.txt"
 # A cached version will be used before a new one is pulled.
 gh_default_cache_time="1h"
@@ -186,9 +186,8 @@ ${WHITE_BOLD}Hotkeys${COLOR_RESET}
   ${GREEN_NORMAL}?     ${COLOR_RESET}  help
   ${GREEN_NORMAL}ctrl-b${COLOR_RESET}  open the file in the browser
   ${GREEN_NORMAL}ctrl-h${COLOR_RESET}  display the history commands
-  ${GREEN_NORMAL}ctrl-n${COLOR_RESET}  next history command
   ${GREEN_NORMAL}ctrl-o${COLOR_RESET}  open the file content in the editor
-  ${GREEN_NORMAL}ctrl-p${COLOR_RESET}  previous history command
+  ${GREEN_NORMAL}ctrl-p${COLOR_RESET}  replace query with "repo:<owner>/<name>"
   ${GREEN_NORMAL}ctrl-r${COLOR_RESET}  reload with up to 100 results
   ${GREEN_NORMAL}ctrl-t${COLOR_RESET}  toggle between Code and Fuzzy search
   ${GREEN_NORMAL}ctrl-x${COLOR_RESET}  open the search query in the browser
@@ -302,15 +301,29 @@ open_query_in_browser() {
 	fi
 }
 
+add_to_history() {
+	# Add the query to the history file
+	echo "$FZF_QUERY" >>"$gh_find_code_history"
+
+	# Remove duplicate lines and empty lines
+	command tail -r "$gh_find_code_history" | command awk '!x[$0]++' |
+		command grep --invert-match '^$' | command tail -n "$MAX_LINES_HISTORY" |
+		command tail -r >"$store_gh_find_code_history_tmp"
+
+	# Check if the temporary file was created successfully
+	if [[ -f $store_gh_find_code_history_tmp ]]; then
+		command mv "$store_gh_find_code_history_tmp" "$gh_find_code_history"
+	fi
+}
+
 gh_query() {
-	local data input="$*"
-	local items total_count total_count_si_format skip_count
+	local data items total_count total_count_si_format skip_count
 	local index owner_repo_name file_name file_path patterns
 	local file_extension bat_langs sanitized_patterns sanitized_owner_repo_name sanitized_file_path
 	local matched_line error_encountered redirect_location index_color
 	local base_name dir_name
 	declare -a line_numbers
-	if [ -z "$input" ]; then
+	if [[ -z $FZF_QUERY ]]; then
 		curl_custom "transform-header:printf '%b? help · esc quit\nPlease enter a search query.%b' '$DARK_GRAY' '$COLOR_RESET'"
 		return
 	fi
@@ -331,7 +344,7 @@ gh_query() {
 		--header "$gh_accept_text_match" \
 		--header "$gh_rest_api_version" \
 		--field "per_page=$gh_user_limit" \
-		--raw-field q="${input}" \
+		--raw-field q="${FZF_QUERY}" \
 		--jq \
 		$'"\(.items|length) \(.total_count)",
 		(.items | to_entries[] | {
@@ -352,6 +365,10 @@ gh_query() {
 		fi
 		return
 	else
+		# Add successful queries to the history only when there was at least one result
+		# TODO: needs testing to determine if it is counterproductive to not store queries
+		[[ ${data:0:1} != "0" ]] && add_to_history
+
 		if [[ $FZF_PROMPT == "$fzf_prompt_error" ]]; then
 			curl_custom "change-prompt($default_fzf_prompt)+change-preview-window(nowrap)+change-preview:view_contents {}"
 		fi
@@ -701,25 +718,24 @@ view_history_commands() {
 		header_string="No history entries yet. Check back on your next run. Press 'esc' to exit."
 	fi
 	echo "hold" >"$store_hold_gh_query_loop"
-	# IMPORTANT: There was an unsuccessful attempt to add a delete command to eliminate a line from
-	# the history. It appears that 'fzf' has loaded the 'gh_find_code_history.txt' into its buffer
-	# and doesn't reload it prior to appending the new entry, thus any deletions are reverted.
 	history_command=$'command tail -r "$gh_find_code_history" | command nl -n ln -w 3 -s "\t"'
 	selection=$(
 		: | fzf_basic_style \
 			--bind "start:execute-silent(echo \${PPID-} >>$store_ppid)+reload:$history_command" \
+			--bind "ctrl-d:reload:grep --fixed-strings --line-regexp --invert-match {2..} $gh_find_code_history >$store_gh_find_code_history_tmp; mv $store_gh_find_code_history_tmp $gh_find_code_history; $history_command" \
 			--bind 'ctrl-h:abort' \
 			--bind 'esc:abort' \
 			--color "header:${header_color:--1}" \
+			--header "${header_string:-"enter select · ^d delete a line · esc quit"}" \
 			--info inline \
+			--scheme history \
 			--preview-window 'hidden' \
-			--prompt 'Select a History Entry > ' \
-			--header "${header_string:-"enter select · esc quit"}"
+			--prompt 'Select a History Entry > '
 	)
 
 	if [[ -n $selection ]]; then
 		selection="$(command awk '{$1=""; sub(/^[ \t]+/, ""); print $0}' <<<"$selection")"
-		curl_custom "change-query($selection)+beginning-of-line"
+		curl_custom "change-query:$selection"
 	fi
 	: >"$store_hold_gh_query_loop"
 }
@@ -734,6 +750,7 @@ view_history_commands() {
 	--bind 'ctrl-b:execute-silent:gh browse --repo {4} {5}:{1}' \
 	--bind 'ctrl-h:execute:view_history_commands' \
 	--bind $'ctrl-o:execute:[[ $FZF_MATCH_COUNT -ge 1 ]] && open_in_editor=true view_contents {}' \
+	--bind "ctrl-p:transform-query:echo repo:{4}" \
 	--bind 'ctrl-r:reload:gh_user_limit=100;gh_query {fzf:query}' \
 	--bind "ctrl-t:transform:[[ ! \$FZF_PROMPT == \"$default_fzf_prompt\" ]] &&
 		echo 'rebind(change)+change-prompt($default_fzf_prompt)+disable-search+transform-query:echo \{fzf:query} > $store_fuzzy_search_string; cat $store_search_string' ||
@@ -747,8 +764,6 @@ view_history_commands() {
 		echo 'change-prompt($default_fzf_prompt)+change-preview-window(+\{1}+3/3)+change-preview:\view_contents \{}'" \
 	--delimiter '\t|\s\s+' \
 	--disabled \
-	--history "$gh_find_code_history" \
-	--history-size 250 \
 	--listen \
 	--nth=2..,.. \
 	--pointer '▶' \
