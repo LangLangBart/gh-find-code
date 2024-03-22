@@ -12,9 +12,9 @@ set -o allexport -o errexit -o nounset -o pipefail
 # __type(name: "SearchType") { enumValues { name } }}' \
 # --jq '[.data.__type.enumValues[].name] | join(", ")'
 
-# TODO: add tests
+# TODO: add tests - https://github.com/dodie/testing-in-bash
 # TODO: replace python with a more typical bash solution
-# TODO: Investigate the cause of the experienced output from a background job after exiting from 'fzf'
+
 # ====================== set variables =======================
 
 # define colors
@@ -102,26 +102,6 @@ cleanup() {
 			fi
 		done
 		: >"$store_pids"
-	fi
-
-	# In the case of duplicates, only the most recent entry is kept. One could use 'tac' instead
-	# of 'tail -r', but it requires 'coreutils'. Be careful not to read and write the same file
-	# in the same pipeline - https://shellcheck.net/wiki/SC2094. This could lead to a race
-	# condition, resulting in the file being erased. It's crucial to run the process before
-	# deleting the scratch_directory.
-	# Check if the file exists before proceeding
-	if [[ -f $gh_find_code_history ]]; then
-		command tail -r "$gh_find_code_history" | command awk '!x[$0]++' |
-			command grep --invert-match '^$' | command tail -r >"$store_gh_find_code_history_tmp"
-
-		# Check if the temporary file was created successfully
-		if [[ -f $store_gh_find_code_history_tmp ]]; then
-			command mv "$store_gh_find_code_history_tmp" "$gh_find_code_history"
-		else
-			$debug_mode && echo "Error: Failed to create temporary file."
-		fi
-	else
-		$debug_mode && echo "Error: File '$gh_find_code_history' not found."
 	fi
 
 	$debug_mode && printf "%bDebug mode was ON, the following files weren't deleted.%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
@@ -313,7 +293,10 @@ add_to_history() {
 	# Add the query to the history file
 	echo "$FZF_QUERY" >>"$gh_find_code_history"
 
-	# Remove duplicate lines and empty lines
+	# In the case of duplicates, only the most recent entry is kept. One could use 'tac' instead
+	# of 'tail -r', but it requires 'coreutils'. Be careful not to read and write the same file
+	# in the same pipeline - https://shellcheck.net/wiki/SC2094. This could lead to a race
+	# condition, resulting in the file being erased.
 	command tail -r "$gh_find_code_history" | command awk '!x[$0]++' |
 		command grep --invert-match '^$' | command tail -n "$MAX_LINES_HISTORY" |
 		command tail -r >"$store_gh_find_code_history_tmp"
