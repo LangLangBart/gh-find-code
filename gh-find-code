@@ -313,9 +313,9 @@ add_to_history() {
 	# of 'tail -r', but it requires 'coreutils'. Be careful not to read and write the same file
 	# in the same pipeline - https://shellcheck.net/wiki/SC2094. This could lead to a race
 	# condition, resulting in the file being erased.
-	command tail -r "$gh_find_code_history" | command awk '!x[$0]++' |
-		command grep --invert-match '^$' | command tail -n "$MAX_LINES_HISTORY" |
-		command tail -r >"$store_gh_find_code_history_tmp"
+	command tail -r "$gh_find_code_history" | command awk '{$1=$1}; NF && !x[$0]++' |
+		command grep --invert-match '^$' | command tail -r |
+		command tail -n "$MAX_LINES_HISTORY" >"$store_gh_find_code_history_tmp"
 
 	command mv "$store_gh_find_code_history_tmp" "$gh_find_code_history"
 }
@@ -327,6 +327,22 @@ remove_history() {
 		"$gh_find_code_history" >"$store_gh_find_code_history_tmp"
 
 	command mv "$store_gh_find_code_history_tmp" "$gh_find_code_history"
+}
+
+show_api_limits() {
+	echo
+	command gh api rate_limit \
+		--header "$gh_accept_json" \
+		--header "$gh_rest_api_version" \
+		--jq \
+		'(["List API Limits", "Used/Limit", "Resetting"] | (., map(length*"¯"))),
+						(.resources | to_entries[] | {
+							name: .key,
+							used_limit: "\(.value.used)/\(.value.limit)",
+							reset: "\(.value.reset | strflocaltime("%H:%M:%S %Z") ) (\((.value.reset - now) | (./60|ceil))m)"
+						}  | [.name, .used_limit, .reset]) | @tsv' |
+		command column -ts $'\t' |
+		command "$bat_executable" --color=always --plain --language COMMIT_EDITMSG
 }
 
 # This function queries the GitHub search API with the provided string. It then downloads the files
@@ -374,7 +390,8 @@ gh_query() {
 		curl_custom "transform-header:printf '%b- Check preview window\n- Check query syntax\n- Check internet connection%b' \
 				'$RED_NORMAL' '$COLOR_RESET'"
 		if [[ -s $store_gh_search_debug ]]; then
-			curl_custom "change-prompt($fzf_prompt_error)+change-preview-window(nohidden:wrap)+change-preview:command cat $store_gh_search_debug"
+			show_api_limits >>"$store_gh_search_debug"
+			curl_custom "change-prompt($fzf_prompt_error)+change-preview-window(nohidden:wrap:~0:+1)+change-preview:command cat $store_gh_search_debug"
 		fi
 		return
 	else
@@ -576,21 +593,7 @@ gh_query() {
 			skip_count="$(command sed -n '$=' "$store_skip_count")"
 
 			if $error_encountered; then
-				{
-					echo
-					command gh api rate_limit \
-						--header "$gh_accept_json" \
-						--header "$gh_rest_api_version" \
-						--jq \
-						'(["List API Limits", "Used/Limit", "Resetting"] | (., map(length*"¯"))),
-						(.resources | to_entries[] | {
-							name: .key,
-							used_limit: "\(.value.used)/\(.value.limit)",
-							reset: "\(.value.reset | strflocaltime("%H:%M:%S %Z") ) (\((.value.reset - now) | (./60|ceil))m)"
-						}  | [.name, .used_limit, .reset]) | @tsv' |
-						command column -ts $'\t' |
-						command "$bat_executable" --color=always --plain --language COMMIT_EDITMSG
-				} >>"$store_gh_content_debug"
+				show_api_limits >>"$store_gh_content_debug"
 				curl_custom "transform-header(printf '%bAPI failed for repos/%s/contents/%s%b' \
 					'$RED_NORMAL' '$owner_repo_name' '$file_path' '$COLOR_RESET')+change-preview:command cat '$store_gh_content_debug'"
 			elif ((skip_count > 0)); then
@@ -701,7 +704,7 @@ view_contents() {
 # Basic style for 'fzf'; useful tool:  https://vitormv.github.io/fzf-themes/
 # IMPORTANT: anything after "$@" will overwrite options in the actual command
 fzf_basic_style() {
-	command fzf -- \
+	: | command fzf -- \
 		--ansi \
 		--bind 'scroll-up:offset-up,scroll-down:offset-down' \
 		--bind "ctrl-c:execute:kill_processes $store_fzf_ppids" \
@@ -734,7 +737,7 @@ view_history_commands() {
 	echo "hold" >"$store_hold_gh_query_loop"
 	history_command=$'command tail -r "$gh_find_code_history" | command nl -n ln -w 3 -s "\t"'
 	selection=$(
-		: | fzf_basic_style \
+		fzf_basic_style \
 			--bind "change:first" \
 			--bind "start:execute-silent(echo \${PPID-} >>$store_fzf_ppids)+reload:$history_command" \
 			--bind "ctrl-d:reload:remove_history {2..}; $history_command" \
@@ -772,7 +775,7 @@ preview_transformer() {
 # NOTE: The 'change-preview-window' action in 'transform' should precede 'change-preview'.
 # NOTE: In the transform action, placeholders and functions using placeholders as arguments must be
 # escaped, e.g. '\view_contents \{}'
-: | fzf_basic_style \
+fzf_basic_style \
 	--bind "change:first+reload:command sleep 0.5; gh_query {fzf:query}" \
 	--bind "resize:transform:preview_transformer" \
 	--bind "start:execute-silent(echo \${PPID-} >>$store_fzf_ppids)+reload:gh_query {fzf:query}" \
@@ -787,7 +790,7 @@ preview_transformer() {
 	--bind 'ctrl-x:execute-silent:open_query_in_browser {fzf:query}' \
 	--bind $'enter:execute:[[ $FZF_MATCH_COUNT -ge 1 ]] && view_contents {}' \
 	--bind 'esc:become:' \
-	--bind "tab:change-prompt($default_fzf_prompt)+change-preview(view_contents {})+change-preview-window:hidden:<70(hidden)|+{1}+3/3" \
+	--bind "tab:change-prompt($default_fzf_prompt)+change-preview(view_contents {})+change-preview-window:hidden:hidden|+{1}+3/3" \
 	--bind "?:transform:[[ ! \$FZF_PROMPT =~ Help ]] &&
 		echo 'change-prompt(Help: )+change-preview-window(~0:+1)+change-preview:print_help_text' ||
 		echo 'change-prompt($default_fzf_prompt)+change-preview-window(+\{1}+3/3)+change-preview:\view_contents \{}'" \
