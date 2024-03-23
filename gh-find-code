@@ -56,6 +56,7 @@ min_fzf_version="0.47.0"
 # a bug with 'gh-browse' with relative paths was fixed
 # https://github.com/cli/cli/issues/7674
 min_gh_version="2.37.0"
+bat_executable=""
 # requires 'urllib.parse'
 # https://docs.python.org/3/library/urllib.parse.html
 min_python_version="3.0.0"
@@ -64,22 +65,22 @@ python_executable=""
 # associative arrays with 'declare -A' was unsuccessful as I couldn't access the associated
 # filename in child processes.
 
-date_prefix=$(date -u +%Y-%m-%dT%H-%M-%S)
+date_prefix=$(command date -u +%Y-%m-%dT%H-%M-%S)
 # Default directory for trivial files
-scratch_directory=$(mktemp -dt "$date_prefix.gh_find_code") || die "Can't create directory."
+scratch_directory=$(command mktemp -dt "$date_prefix.gh_find_code") || die "Can't create directory."
 store_input_list="${scratch_directory}/input_list"
 store_tee_append="${scratch_directory}/tee_append"
-store_file_contents="${scratch_directory}/file_content"
+store_file_contents="${scratch_directory}/file_contents"
 store_skip_count="${scratch_directory}/skip_count"
-store_ppid="${scratch_directory}/ppid"
-store_pids="${scratch_directory}/pids"
+store_fzf_ppids="${scratch_directory}/fzf_ppids"
+store_query_pids="${scratch_directory}/query_pids"
 store_fuzzy_search_string="${scratch_directory}/fuzzy_search_string"
 store_search_string="${scratch_directory}/search_string"
 store_gh_find_code_history_tmp="${scratch_directory}/gh_find_code_history_tmp"
 store_hold_gh_query_loop="${scratch_directory}/hold_gh_query_loop"
 
 # Debug directory
-debug_directory=$(mktemp -dt "$date_prefix.gh_find_code.debug") || die "Can't create debug directory."
+debug_directory=$(command mktemp -dt "$date_prefix.gh_find_code.debug") || die "Can't create debug directory."
 store_bat_debug="${debug_directory}/bat_debug"
 store_grep_extended_debug="${debug_directory}/grep_extended_debug"
 store_gh_search_debug="${debug_directory}/gh_search_debug"
@@ -87,22 +88,28 @@ store_gh_content_debug="${debug_directory}/gh_content_debug"
 
 # =========================== basics ============================
 
-cleanup() {
-	if [ -s "$store_ppid" ]; then
-		while read -r ppid; do
-			if command kill -0 "$ppid" 2>/dev/null; then
-				command kill "$ppid" 2>/dev/null
-			fi
-		done <"$store_ppid"
-	fi
-	if [ -s "$store_pids" ]; then
-		command awk '!x[$0]++' "$store_pids" | while read -r pid; do
-			if command kill -0 "$pid" 2>/dev/null; then
-				command kill "$pid" 2>/dev/null
+# Terminates processes whose IDs are stored in the given file and empty the file
+kill_processes() {
+	if [[ -s $1 ]]; then
+		command awk '!x[$0]++' "$1" | while read -r process; do
+			if command kill -0 "$process" 2>/dev/null; then
+				# Gracefully shuts down a process with signal 15 (SIGTERM)
+				if ! command kill -15 "$process" 2>/dev/null; then
+					# Fallback to ending PID process with signal 9 (SIGKILL)
+					if ! command kill -9 "$process" 2>/dev/null; then
+						echo "Failed to kill PID $process" >&2
+					fi
+				fi
 			fi
 		done
-		: >"$store_pids"
+		# clear the file
+		: >"$1"
 	fi
+}
+
+cleanup() {
+	kill_processes "$store_fzf_ppids"
+	kill_processes "$store_query_pids"
 
 	$debug_mode && printf "%bDebug mode was ON, the following files weren't deleted.%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
 	command rm -rf "$scratch_directory" 2>/dev/null
@@ -167,7 +174,7 @@ ${WHITE_BOLD}Hotkeys${COLOR_RESET}
   ${GREEN_NORMAL}ctrl-b${COLOR_RESET}  open the file in the browser
   ${GREEN_NORMAL}ctrl-h${COLOR_RESET}  display the history commands
   ${GREEN_NORMAL}ctrl-o${COLOR_RESET}  open the file content in the editor
-  ${GREEN_NORMAL}ctrl-p${COLOR_RESET}  replace query with "repo:<owner>/<name>"
+  ${GREEN_NORMAL}ctrl-p${COLOR_RESET}  replace query with "repo:owner/name"
   ${GREEN_NORMAL}ctrl-r${COLOR_RESET}  reload with up to 100 results
   ${GREEN_NORMAL}ctrl-t${COLOR_RESET}  toggle between Code and Fuzzy search
   ${GREEN_NORMAL}ctrl-x${COLOR_RESET}  open the search query in the browser
@@ -190,8 +197,8 @@ EOF
 
 # ====================== parse command-line options =======================
 
-while getopts "dhl:" opt; do
-	case ${opt} in
+while getopts "dhl:" value; do
+	case $value in
 		d)
 			default_fzf_prompt="$(printf "%b❮ 𝙳𝚎𝚋𝚞𝚐 𝙼𝚘𝚍𝚎 ❯ Code: %b" "$YELLOW_NORMAL" "$COLOR_RESET")"
 			export GH_DEBUG="api"
@@ -214,24 +221,35 @@ shift "$((OPTIND - 1))"
 
 # ====================== check requirements =======================
 
-for tool in bat column curl fzf gh nl tail; do
-	if ! command -v $tool >/dev/null; then
-		die "'$tool' was not found."
+# Rule of Thumb: If it's listed under 'Utilities' in this link, don't check for it
+# https://pubs.opengroup.org/onlinepubs/9699919799/utilities/contents.html
+for value in column curl fzf gh; do
+	if ! command -v $value >/dev/null; then
+		die "'$value' was not found."
 	fi
 done
 check_version fzf "$min_fzf_version"
 check_version gh "$min_gh_version"
 
+# Iterate over the possible bat names and assign bat_executable
+for value in bat batcat; do
+	if command -v $value >/dev/null; then
+		bat_executable="$value"
+		break
+	fi
+done
+[[ -z $bat_executable ]] && die "'bat' was not found."
+
 # Iterate over the possible python versions and assign python_executable
-for python_version in python python3; do
-	if command -v $python_version >/dev/null &&
-		[[ -z $(check_version "$python_version" "$min_python_version" echo) ]]; then
-		python_executable="$python_version"
+for value in python python3; do
+	if command -v $value >/dev/null &&
+		[[ -z $(check_version "$value" "$min_python_version" echo) ]]; then
+		python_executable="$value"
 		break
 	fi
 done
 # If no suitable python version was found, terminate the script
-[[ -z ${python_executable} ]] && die "No suitable 'python' version found."
+[[ -z $python_executable ]] && die "No suitable 'python' version found."
 
 # Verify if there are at least two spaces between columns. The delimiter in 'fzf' is set to
 # '\t' or '\s\s+' to separate fields. By default, the 'column' command should separate any
@@ -242,14 +260,13 @@ done
 # https://github.com/util-linux/util-linux/commit/47bd8ddc
 # https://github.com/util-linux/util-linux/issues/1699#issuecomment-1140972918
 # https://man7.org/linux/man-pages/man1/column.1.html
-
 if [[ $(command column -t <<<"A Z" 2>/dev/null) != *"  "* ]]; then
 	die "Your 'column' command does not separate columns with at least two spaces. Please report this issue, stating your operating system and 'column' version."
 fi
 
 # If the history file is empty and MAX_LINES_HISTORY is greater than zero, add some examples.
 if [[ ! -s $gh_find_code_history ]] && ((MAX_LINES_HISTORY)); then
-	cat <<'EOF' >"$gh_find_code_history"
+	command cat <<'EOF' >"$gh_find_code_history"
 repo:junegunn/fzf FZF_PORT
 extension:rs "Hello, world!"
 EOF
@@ -289,10 +306,9 @@ open_query_in_browser() {
 	fi
 }
 
+# Adding the current value for 'FZF_QUERY', exported by 'fzf', to the history file.
 add_to_history() {
-	# Add the query to the history file
 	echo "$FZF_QUERY" >>"$gh_find_code_history"
-
 	# In the case of duplicates, only the most recent entry is kept. One could use 'tac' instead
 	# of 'tail -r', but it requires 'coreutils'. Be careful not to read and write the same file
 	# in the same pipeline - https://shellcheck.net/wiki/SC2094. This could lead to a race
@@ -301,12 +317,23 @@ add_to_history() {
 		command grep --invert-match '^$' | command tail -n "$MAX_LINES_HISTORY" |
 		command tail -r >"$store_gh_find_code_history_tmp"
 
-	# Check if the temporary file was created successfully
-	if [[ -f $store_gh_find_code_history_tmp ]]; then
-		command mv "$store_gh_find_code_history_tmp" "$gh_find_code_history"
-	fi
+	command mv "$store_gh_find_code_history_tmp" "$gh_find_code_history"
 }
 
+# Removing a specified line fzrom the history file.
+remove_history() {
+	# Remove the specified line from the history file
+	command grep --fixed-strings --line-regexp --invert-match "$*" \
+		"$gh_find_code_history" >"$store_gh_find_code_history_tmp"
+
+	command mv "$store_gh_find_code_history_tmp" "$gh_find_code_history"
+}
+
+# This function queries the GitHub search API with the provided string. It then downloads the files
+# for each result. To speed up the process, file downloads are executed in the background. The
+# script iterates through the returned search results, allowing a 2s wait time before a file will be
+# skipped. The function returns a list containing the line number of the first matched word in that
+# file, the valid 'bat' file extension for syntax highlighting, the index, repo name, and file path.
 gh_query() {
 	local data items total_count total_count_si_format skip_count
 	local index owner_repo_name file_name file_path patterns
@@ -318,15 +345,10 @@ gh_query() {
 		curl_custom "transform-header:printf '%b? help · esc quit\nPlease enter a search query.%b' '$DARK_GRAY' '$COLOR_RESET'"
 		return
 	fi
-	# Ensure all background jobs are terminated before starting a new one.
-	if [ -s "$store_pids" ]; then
-		command awk '!x[$0]++' "$store_pids" | while read -r pid; do
-			if command kill -0 "$pid" 2>/dev/null; then
-				command kill "$pid" 2>/dev/null
-			fi
-		done
-		: >"$store_pids"
-	fi
+
+	# Ensure all background jobs are terminated before starting new ones
+	kill_processes "$store_query_pids"
+
 	curl_custom "transform-header:printf '%bSearching…%b' '$DARK_GRAY' '$COLOR_RESET'"
 	if ! data=$(command gh api search/code \
 		--method GET \
@@ -352,7 +374,7 @@ gh_query() {
 		curl_custom "transform-header:printf '%b- Check preview window\n- Check query syntax\n- Check internet connection%b' \
 				'$RED_NORMAL' '$COLOR_RESET'"
 		if [[ -s $store_gh_search_debug ]]; then
-			curl_custom "change-prompt($fzf_prompt_error)+change-preview-window(nohidden:wrap)+change-preview:cat $store_gh_search_debug"
+			curl_custom "change-prompt($fzf_prompt_error)+change-preview-window(nohidden:wrap)+change-preview:command cat $store_gh_search_debug"
 		fi
 		return
 	else
@@ -396,10 +418,10 @@ gh_query() {
 					fi
 				) &
 				# save process ID of the most recently invoked background job
-				echo $! >>"$store_pids"
+				echo $! >>"$store_query_pids"
 			done
 		} <<<"$data") &
-		echo $! >>"$store_pids"
+		echo $! >>"$store_query_pids"
 		{
 			error_encountered=false
 			update_preview_window_size=false
@@ -436,7 +458,7 @@ gh_query() {
 				fi
 				# This covers special cases where syntax highlighting requires a leading
 				# dot, such as filenames like 'zshrc', '.zshrc' or 'macos.zshrc'
-				bat_langs=$(command bat --list-languages --color=never |
+				bat_langs=$(command "$bat_executable" --list-languages --color=never |
 					command awk -F ":" '{print $2}' | command tr ',' '\n')
 				if command grep --quiet --word-regexp "^\.${file_extension}$" <<<"$bat_langs"; then
 					file_extension=".${file_extension}"
@@ -444,31 +466,23 @@ gh_query() {
 					file_extension=".${file_name}"
 				fi
 
-				# Escape special charters before using the string in extended 'grep'.
-				# However, the "|" character should be left unescaped.
-				sanitized_patterns=$(command sed -e 's/[][?*+.\/$^(){}]/\\&/g' <<<"$patterns")
 				SECONDS=0
-				while :; do
-					! command kill -0 "$PPID" 2>/dev/null && break
-					if [ -s "${store_file_contents}_${index}" ]; then
-						cp "${store_file_contents}_${index}" "${store_file_contents}_${index}_fetched"
+				while command kill -0 "$PPID" 2>/dev/null; do
+					if [[ -s ${store_file_contents}_${index} ]]; then
+						command cp "${store_file_contents}_${index}" "${store_file_contents}_${index}_fetched"
 						: >"${store_file_contents}_${index}"
 						break
 					fi
 					command sleep 0.1
-					if ((SECONDS >= 2)); then
-						# There could be several reasons why pulling content might fail. One
-						# reason could be outdated cached search results from GitHub. For
-						# example, a user might have deleted their account, but their content
-						# is still in the search index.
+					# There could be several reasons why pulling content might fail. One reason
+					# could be outdated cached search results from GitHub. For example, a user might
+					# have deleted their account, but their content is still in the search index.
+					if ((SECONDS > 2)); then
+						# The file is needed now to get the line numbers in the next step.
+						# Therefore, the file will be skipped.
 						echo "$index" >>"$store_skip_count"
 						if $debug_mode; then
 							error_encountered=true
-						else
-							{
-								command cat "$store_gh_content_debug"
-								printf "\n[%s] SKIPPED: The contents of this file couldn't be fetched.\n\n" "$(date -u +%Y-%m-%dT%H-%M-%S)"
-							} >>"${store_file_contents}_${index}"
 						fi
 						index_color="$RED_NORMAL"
 						patterns="__NoPatternFound__"
@@ -482,9 +496,8 @@ gh_query() {
 				# These lines are used as a mechanism to stop the loop from continuing to send POST
 				# requests, otherwise it will block the 'view_history_commands' function
 				while [[ $(<"$store_hold_gh_query_loop") == "hold" ]]; do
-					sleep 0.1
+					command sleep 0.1
 				done
-
 				curl_custom "transform-header:printf '%b%s/%s of %s collected...%b' '$DARK_GRAY' \
 					'$index' '$total_listed_results' '$total_count_si_format' '$COLOR_RESET'"
 
@@ -492,6 +505,9 @@ gh_query() {
 					redirect_location="${store_grep_extended_debug}_${index}"
 				fi
 
+				# Escape special charters before using the string in extended 'grep'.
+				# However, the "|" character should be left unescaped.
+				sanitized_patterns=$(command sed -e 's/[][?*+.\/$^(){}]/\\&/g' <<<"$patterns")
 				line_numbers=()
 				[[ $patterns != "__NoPatternFound__" ]] && while IFS='' read -r matched_line; do
 					# Ensure only valid numbers are included
@@ -529,13 +545,13 @@ gh_query() {
 				# TODO: This will disrupt the ctrl-b command. To resolve this, one could store the
 				# filepath in a separate file to allow 'gh browse …' to open it properly. This is a
 				# very specific edge case and may not require immediate attention.
-				if dirname "$file_path" &>/dev/null; then
-					dir_name=$(dirname "$file_path")
+				if command dirname "$file_path" &>/dev/null; then
+					dir_name=$(command dirname "$file_path")
 				else
 					dir_name="${file_path:0:30}…"
 				fi
-				if basename "$file_path" &>/dev/null; then
-					base_name=$(basename "$file_path")
+				if command basename "$file_path" &>/dev/null; then
+					base_name=$(command basename "$file_path")
 				else
 					base_name="…${file_path: -30}"
 				fi
@@ -557,7 +573,7 @@ gh_query() {
 			done
 			# Format the input list into a structured table.
 			command column -ts $'\t' <"$store_tee_append" >"$store_input_list"
-			skip_count="$(sed -n '$=' "$store_skip_count")"
+			skip_count="$(command sed -n '$=' "$store_skip_count")"
 
 			if $error_encountered; then
 				{
@@ -573,17 +589,17 @@ gh_query() {
 							reset: "\(.value.reset | strflocaltime("%H:%M:%S %Z") ) (\((.value.reset - now) | (./60|ceil))m)"
 						}  | [.name, .used_limit, .reset]) | @tsv' |
 						command column -ts $'\t' |
-						command bat --color=always --plain --language COMMIT_EDITMSG
+						command "$bat_executable" --color=always --plain --language COMMIT_EDITMSG
 				} >>"$store_gh_content_debug"
 				curl_custom "transform-header(printf '%bAPI failed for repos/%s/contents/%s%b' \
-					'$RED_NORMAL' '$owner_repo_name' '$file_path' '$COLOR_RESET')+change-preview:cat '$store_gh_content_debug'"
+					'$RED_NORMAL' '$owner_repo_name' '$file_path' '$COLOR_RESET')+change-preview:command cat '$store_gh_content_debug'"
 			elif ((skip_count > 0)); then
-				curl_custom "reload(cat $store_input_list)+transform-header:printf '%b%s of ∑ %s%b (Skipped: %d %s [%s])%b | ? help · esc quit%b\n' \
+				curl_custom "reload(command cat $store_input_list)+transform-header:printf '%b%s of ∑ %s%b (Skipped: %d %s [%s])%b | ? help · esc quit%b\n' \
 					'$GREEN_NORMAL' '$items' '$total_count_si_format' '$RED_NORMAL' '$skip_count' \
 					'$([[ $skip_count -gt 1 ]] && echo items || echo item)' \
-					'$(paste -sd "," "$store_skip_count")' '$DARK_GRAY' '$COLOR_RESET'"
+					'$(command paste -sd "," "$store_skip_count")' '$DARK_GRAY' '$COLOR_RESET'"
 			else
-				curl_custom "reload(cat $store_input_list)+transform-header:printf '%b%s of ∑ %s%b | ? help · esc quit%b\n' \
+				curl_custom "reload(command cat $store_input_list)+transform-header:printf '%b%s of ∑ %s%b | ? help · esc quit%b\n' \
 					'$GREEN_NORMAL' '$items' '$total_count_si_format' '$DARK_GRAY' '$COLOR_RESET'"
 			fi
 
@@ -597,9 +613,9 @@ view_contents() {
 	declare -a line_numbers bat_args editor_args less_args
 	local file_extension index file_path
 	local file_name tempfile_with_ext less_move_to_line
-	IFS=$'\t' read -r _ file_extension index _ file_path < <(sed -E $'s/[[:space:]]{2,}/\t/g' <<<"$@")
+	IFS=$'\t' read -r _ file_extension index _ file_path < <(command sed -E $'s/[[:space:]]{2,}/\t/g' <<<"$@")
 	# Remove trailing whitespace that was caused by the '%-3d' placeholder in 'printf'.
-	index=$(tr -d '[:space:]' <<<"$index")
+	index=$(command tr -d '[:space:]' <<<"$index")
 
 	# The '--wrap never' option is necessary as, without it, the 'fzf' preview may
 	# occasionally navigate to the incorrect line. The '--theme' option is not required
@@ -610,18 +626,18 @@ view_contents() {
 		"--color=always"
 	)
 
-	[[ $file_extension != "null" ]] && if command bat --language "$file_extension" <<<"test" >/dev/null 2>&1; then
+	[[ $file_extension != "null" ]] && if command "$bat_executable" --language "$file_extension" <<<"test" >/dev/null 2>&1; then
 		bat_args+=("--language=${file_extension}")
 	fi
 	IFS=' ' read -ra line_numbers <"${store_file_contents}_${index}_line_numbers"
 
 	# NOTE: The '--line-range' in 'bat' overrides preceding flags. However, the
-	# '--highlight-line' attribute can be  utilized multiple times.
+	# '--highlight-line' attribute can be utilized multiple times.
 	# https://github.com/sharkdp/bat/pull/162#pullrequestreview-125072252
 	for number in "${line_numbers[@]}"; do
 		bat_args+=("--highlight-line=${number}")
 	done
-	file_name=$(basename "$file_path")
+	file_name=$(command basename "$file_path")
 
 	# Replace single quotes with escaped back ticks. A file_name might start with a dash
 	# (-). Ensure there is no space between '--file-name' and the argument.
@@ -629,8 +645,8 @@ view_contents() {
 
 	if $open_in_editor; then
 		tempfile_with_ext="${store_file_contents}_${index}_${file_name}"
-		cp "${store_file_contents}_${index}_fetched" "$tempfile_with_ext"
-		case $(basename "${EDITOR-}") in
+		command cp "${store_file_contents}_${index}_fetched" "$tempfile_with_ext"
+		case $(command basename "${EDITOR-}") in
 			code | codium)
 				editor_args=(--reuse-window --goto "${tempfile_with_ext}:${line_numbers:-1}")
 				;;
@@ -649,10 +665,10 @@ view_contents() {
 	if $debug_mode; then
 		{
 			echo -n "bat version: "
-			command bat --version
+			command "$bat_executable" --version
 			echo -n "config file: "
-			command bat --config-file
-			command cat "$(command bat --config-file)"
+			command "$bat_executable" --config-file
+			command cat "$(command "$bat_executable" --config-file)"
 			for value in BAT_PAGER BAT_CONFIG_PATH BAT_STYLE BAT_THEME BAT_TABS PAGER; do
 				echo "$value = '${!value}'"
 			done
@@ -661,7 +677,7 @@ view_contents() {
 
 	bat_args+=("--paging=always")
 	# The 'less' pager can move to a specific line.
-	if [[ $(basename "${PAGER-}") =~ ^(bat|less)$ ]]; then
+	if [[ $(command basename "${PAGER-}") =~ ^(bat|less)$ ]]; then
 		# The long option (--+…) for resetting the option to its default setting is broken in
 		# less version 643, so only use the short version.
 		# Ref: https://github.com/gwsw/less/issues/452
@@ -679,16 +695,16 @@ view_contents() {
 		# https://github.com/sharkdp/bat#using-a-different-pager
 		bat_args+=("--pager='less ${less_args[*]}'")
 	fi
-	eval command bat "${bat_args[*]}" "${store_file_contents}_${index}_fetched"
+	eval command "$bat_executable" "${bat_args[*]}" "${store_file_contents}_${index}_fetched"
 }
 
+# Basic style for 'fzf'; useful tool:  https://vitormv.github.io/fzf-themes/
+# IMPORTANT: anything after "$@" will overwrite options in the actual command
 fzf_basic_style() {
-	# Useful tool:  https://vitormv.github.io/fzf-themes/
-	# IMPORTANT: anything after "$@" will overwrite options in the actual command
 	command fzf -- \
 		--ansi \
 		--bind 'scroll-up:offset-up,scroll-down:offset-down' \
-		--bind "ctrl-c:execute:while read -r pid; do kill \$pid 2>/dev/null; done <$store_ppid" \
+		--bind "ctrl-c:execute:kill_processes $store_fzf_ppids" \
 		--border block \
 		--color 'bg+:233,bg:235,gutter:235,border:238,scrollbar:235' \
 		--color 'preview-bg:234,preview-border:236,preview-scrollbar:237' \
@@ -720,13 +736,13 @@ view_history_commands() {
 	selection=$(
 		: | fzf_basic_style \
 			--bind "change:first" \
-			--bind "start:execute-silent(echo \${PPID-} >>$store_ppid)+reload:$history_command" \
-			--bind "ctrl-d:reload:grep --fixed-strings --line-regexp --invert-match {2..} $gh_find_code_history >$store_gh_find_code_history_tmp; mv $store_gh_find_code_history_tmp $gh_find_code_history; $history_command" \
+			--bind "start:execute-silent(echo \${PPID-} >>$store_fzf_ppids)+reload:$history_command" \
+			--bind "ctrl-d:reload:remove_history {2..}; $history_command" \
 			--bind 'ctrl-h:abort' \
 			--bind "ctrl-r:reload:$history_command" \
 			--bind 'esc:abort' \
 			--color "header:${header_color:--1}" \
-			--header "${header_string:-"enter select · ^d delete a line · esc quit"}" \
+			--header "${header_string:-"enter select · ^d delete an entry · esc quit"}" \
 			--info inline \
 			--preview-window 'hidden' \
 			--prompt 'Select a History Entry > ' \
@@ -757,10 +773,10 @@ preview_transformer() {
 # NOTE: In the transform action, placeholders and functions using placeholders as arguments must be
 # escaped, e.g. '\view_contents \{}'
 : | fzf_basic_style \
-	--bind "change:first+reload:sleep 0.5; gh_query {fzf:query}" \
+	--bind "change:first+reload:command sleep 0.5; gh_query {fzf:query}" \
 	--bind "resize:transform:preview_transformer" \
-	--bind "start:execute-silent(echo \${PPID-} >>$store_ppid)+reload:gh_query {fzf:query}" \
-	--bind 'ctrl-b:execute-silent:gh browse --repo {4} {5}:{1}' \
+	--bind "start:execute-silent(echo \${PPID-} >>$store_fzf_ppids)+reload:gh_query {fzf:query}" \
+	--bind 'ctrl-b:execute-silent:command gh browse --repo {4} {5}:{1}' \
 	--bind 'ctrl-h:execute:view_history_commands' \
 	--bind $'ctrl-o:execute:[[ $FZF_MATCH_COUNT -ge 1 ]] && open_in_editor=true view_contents {}' \
 	--bind "ctrl-p:transform-query:echo repo:{4}" \
