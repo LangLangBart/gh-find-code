@@ -33,9 +33,13 @@ DARK_GRAY='\033[0;90m'
 
 debug_mode=false
 open_in_editor=false
+# Note: Using prompts of the same character length helps maintain user focus by avoiding shifts in
+# the prompt's position. End the string with a color code, such as '%b', to preserve trailing
+# whitespace during 'transform' actions.
 default_fzf_prompt="$(printf "%b❮❯ Code: %b" "$CYAN_NORMAL" "$COLOR_RESET")"
-fzf_prompt_fuzzy="$(printf "%b➤ Fuzzy:%b " "$CYAN_INVERT" "$COLOR_RESET")"
-fzf_prompt_error="$(printf "%bSEARCH FAILED:%b " "$RED_NORMAL" "$COLOR_RESET")"
+fzf_prompt_failure="$(printf "%b!! Fail: %b" "$RED_NORMAL" "$COLOR_RESET")"
+fzf_prompt_fuzzyAB="$(printf "%b➤ Fuzzy:%b %b" "$CYAN_INVERT" "$CYAN_NORMAL" "$COLOR_RESET")"
+fzf_prompt_helpABC="$(printf "%b?? Help: %b" "$CYAN_NORMAL" "$COLOR_RESET")"
 
 FZF_API_KEY="$(command head -c 32 /dev/urandom | command base64)"
 BAT_THEME=${BAT_THEME:-Monokai Extended}
@@ -78,6 +82,8 @@ store_fuzzy_search_string="${scratch_directory}/fuzzy_search_string"
 store_search_string="${scratch_directory}/search_string"
 store_gh_find_code_history_tmp="${scratch_directory}/gh_find_code_history_tmp"
 store_hold_gh_query_loop="${scratch_directory}/hold_gh_query_loop"
+store_last_query_signature="${scratch_directory}/last_search_setup"
+store_current_header="${scratch_directory}/current_header"
 
 # Debug directory
 debug_directory=$(command mktemp -dt "$date_prefix.gh_find_code.debug") || die "Can't create debug directory."
@@ -307,7 +313,7 @@ open_query_in_browser() {
 }
 
 # Adding the current value for 'FZF_QUERY', exported by 'fzf', to the history file.
-add_to_history() {
+add_history() {
 	echo "$FZF_QUERY" >>"$gh_find_code_history"
 	# In the case of duplicates, only the most recent entry is kept. One could use 'tac' instead
 	# of 'tail -r', but it requires 'coreutils'. Be careful not to read and write the same file
@@ -320,7 +326,7 @@ add_to_history() {
 	command mv "$store_gh_find_code_history_tmp" "$gh_find_code_history"
 }
 
-# Removing a specified line fzrom the history file.
+# Removing a specified line from the history file.
 remove_history() {
 	# Remove the specified line from the history file
 	command grep --fixed-strings --line-regexp --invert-match "$*" \
@@ -362,8 +368,23 @@ gh_query() {
 		return
 	fi
 
+	# If the query is the same as before, don't bother running it again, provided that the results
+	# of the last query are still there and there was no error. Useful when switching between fuzzy
+	# mode and search mode.
+	current_query_signature=$(echo -n "${FZF_QUERY}${gh_user_limit}")
+	if [[ -s $store_input_list && -s $store_current_header && ! -s $store_gh_search_debug &&
+		$current_query_signature == "$(<"$store_last_query_signature")" ]]; then
+		curl_custom "reload(command cat $store_input_list)+change-header:$(<"$store_current_header")"
+		return
+	fi
+	echo "$current_query_signature" >"$store_last_query_signature"
+
 	# Ensure all background jobs are terminated before starting new ones
 	kill_processes "$store_query_pids"
+	# empty the files
+	: >"$store_gh_search_debug"
+	: >"$store_current_header"
+	: >"$store_input_list"
 
 	curl_custom "transform-header:printf '%bSearching…%b' '$DARK_GRAY' '$COLOR_RESET'"
 	if ! data=$(command gh api search/code \
@@ -387,20 +408,24 @@ gh_query() {
 				if $patterns_array == [] then "__NoPatternFound__" else $patterns_array | unique | join("|") end)
 		} | [.index, .owner_repo_name, .file_name, .file_path, .patterns] | @tsv)' \
 		2>"$store_gh_search_debug") || [[ -z $data ]]; then
-		curl_custom "transform-header:printf '%b- Check preview window\n- Check query syntax\n- Check internet connection%b' \
-				'$RED_NORMAL' '$COLOR_RESET'"
-		if [[ -s $store_gh_search_debug ]]; then
+		if grep --quiet --ignore-case "API rate limit exceeded" "$store_gh_search_debug"; then
 			show_api_limits >>"$store_gh_search_debug"
-			curl_custom "change-prompt($fzf_prompt_error)+change-preview-window(nohidden:wrap:~0:+1)+change-preview:command cat $store_gh_search_debug"
 		fi
+		if [[ ! -s $store_gh_search_debug ]]; then
+			echo "Unknown reason: The query failed, but no error text was written." >>"$store_gh_search_debug"
+		fi
+		# Add a line to the beginning of the error file
+		echo "------- GitHub Code Search Failure -------" |
+			command cat - "$store_gh_search_debug" >"${store_gh_search_debug}_tmp"
+		command mv "${store_gh_search_debug}_tmp" "$store_gh_search_debug"
+		curl_custom "unbind(tab,resize)+change-prompt($fzf_prompt_failure)+change-preview-window(99%:nohidden:wrap:~0:+1)+change-preview(command cat $store_gh_search_debug)+transform-header:printf '%bCheck preview window, query syntax, internet connection, ...%b' '$RED_NORMAL' '$COLOR_RESET'"
 		return
 	else
 		# Add successful queries to the history only when there was at least one result
-		# TODO: needs testing to determine if it is counterproductive to not store queries
-		[[ ${data:0:1} != "0" ]] && add_to_history
+		[[ ${data:0:1} != "0" ]] && add_history
 
-		if [[ $FZF_PROMPT == "$fzf_prompt_error" ]]; then
-			curl_custom "change-prompt($default_fzf_prompt)+change-preview-window(nowrap)+change-preview:view_contents {}"
+		if [[ $FZF_PROMPT == "$fzf_prompt_failure" ]]; then
+			curl_custom "rebind(tab,resize)+change-prompt($default_fzf_prompt)+change-preview-window(nowrap)+change-preview:view_contents {}"
 		fi
 		({
 			# first line
@@ -562,14 +587,10 @@ gh_query() {
 				# TODO: This will disrupt the ctrl-b command. To resolve this, one could store the
 				# filepath in a separate file to allow 'gh browse …' to open it properly. This is a
 				# very specific edge case and may not require immediate attention.
-				if command dirname "$file_path" &>/dev/null; then
-					dir_name=$(command dirname "$file_path")
-				else
+				if ! dir_name=$(command dirname "$file_path" 2>/dev/null); then
 					dir_name="${file_path:0:30}…"
 				fi
-				if command basename "$file_path" &>/dev/null; then
-					base_name=$(command basename "$file_path")
-				else
+				if ! base_name=$(command basename "$file_path" 2>/dev/null); then
 					base_name="…${file_path: -30}"
 				fi
 				printf "%s\t%s\t%b%-3d%b\t%b%s%b/%b%s%b\t%b%s/%b%s%b\n" \
@@ -597,15 +618,16 @@ gh_query() {
 				curl_custom "transform-header(printf '%bAPI failed for repos/%s/contents/%s%b' \
 					'$RED_NORMAL' '$owner_repo_name' '$file_path' '$COLOR_RESET')+change-preview:command cat '$store_gh_content_debug'"
 			elif ((skip_count > 0)); then
-				curl_custom "reload(command cat $store_input_list)+transform-header:printf '%b%s of ∑ %s%b (Skipped: %d %s [%s])%b | ? help · esc quit%b\n' \
-					'$GREEN_NORMAL' '$items' '$total_count_si_format' '$RED_NORMAL' '$skip_count' \
-					'$([[ $skip_count -gt 1 ]] && echo items || echo item)' \
-					'$(command paste -sd "," "$store_skip_count")' '$DARK_GRAY' '$COLOR_RESET'"
+				printf "%b%s of ∑ %s%b (Skipped: %d %s [%s])%b | ? help · esc quit%b\n" \
+					"$GREEN_NORMAL" "$items" "$total_count_si_format" "$RED_NORMAL" "$skip_count" \
+					"$([[ $skip_count -gt 1 ]] && echo items || echo item)" \
+					"$(command paste -sd "," "$store_skip_count")" "$DARK_GRAY" "$COLOR_RESET" >"$store_current_header"
+				curl_custom "reload(command cat $store_input_list)+change-header:$(<"$store_current_header")"
 			else
-				curl_custom "reload(command cat $store_input_list)+transform-header:printf '%b%s of ∑ %s%b | ? help · esc quit%b\n' \
-					'$GREEN_NORMAL' '$items' '$total_count_si_format' '$DARK_GRAY' '$COLOR_RESET'"
+				printf "%b%s of ∑ %s%b | ? help · esc quit%b\n" "$GREEN_NORMAL" "$items" \
+					"$total_count_si_format" "$DARK_GRAY" "$COLOR_RESET" >"$store_current_header"
+				curl_custom "reload(command cat $store_input_list)+change-header:$(<"$store_current_header")"
 			fi
-
 		} <<<"$data"
 		return
 	fi
@@ -734,8 +756,8 @@ view_history_commands() {
 		header_color="yellow"
 		header_string="No history entries yet. Check back on your next run. Press 'esc' to exit."
 	fi
-	echo "hold" >"$store_hold_gh_query_loop"
-	history_command=$'command tail -r "$gh_find_code_history" | command nl -n ln -w 3 -s "\t"'
+	# the extra pipe for 'bat' is to enhance the text visibility
+	history_command=$'command tail -r "$gh_find_code_history" | command nl -s "\t" -n ln -w 3 | command '$bat_executable' --plain --color=always'
 	selection=$(
 		fzf_basic_style \
 			--bind "change:first" \
@@ -774,7 +796,9 @@ preview_transformer() {
 
 # NOTE: The 'change-preview-window' action in 'transform' should precede 'change-preview'.
 # NOTE: In the transform action, placeholders and functions using placeholders as arguments must be
-# escaped, e.g. '\view_contents \{}'
+# escaped, e.g. '\view_contents \{}', but not 'print_help_text'.
+# TODO: The hotkeys 'ctrl-t' and '?' may cause issues if used during certain operations; a solution
+# is needed to address this complexity.
 fzf_basic_style \
 	--bind "change:first+reload:command sleep 0.5; gh_query {fzf:query}" \
 	--bind "resize:transform:preview_transformer" \
@@ -784,15 +808,15 @@ fzf_basic_style \
 	--bind $'ctrl-o:execute:[[ $FZF_MATCH_COUNT -ge 1 ]] && open_in_editor=true view_contents {}' \
 	--bind "ctrl-p:transform-query:echo repo:{4}" \
 	--bind 'ctrl-r:reload:gh_user_limit=100;gh_query {fzf:query}' \
-	--bind "ctrl-t:transform:[[ ! \$FZF_PROMPT == \"$default_fzf_prompt\" ]] &&
-		echo 'rebind(change)+change-prompt($default_fzf_prompt)+disable-search+transform-query:echo \{fzf:query} > $store_fuzzy_search_string; cat $store_search_string' ||
-		echo 'unbind(change)+change-prompt($fzf_prompt_fuzzy)+enable-search+transform-query:echo \{fzf:query} > $store_search_string; cat $store_fuzzy_search_string'" \
+	--bind "ctrl-t:transform:[[ ! \$FZF_PROMPT == \"$fzf_prompt_fuzzyAB\" ]] &&
+		echo 'unbind(change)+change-prompt($fzf_prompt_fuzzyAB)+enable-search+transform-query:echo \{fzf:query} > $store_search_string; command cat $store_fuzzy_search_string' ||
+		echo 'rebind(change)+change-prompt($default_fzf_prompt)+disable-search+transform-query:echo \{fzf:query} > $store_fuzzy_search_string; command cat $store_search_string'" \
 	--bind 'ctrl-x:execute-silent:open_query_in_browser {fzf:query}' \
 	--bind $'enter:execute:[[ $FZF_MATCH_COUNT -ge 1 ]] && view_contents {}' \
 	--bind 'esc:become:' \
 	--bind "tab:change-prompt($default_fzf_prompt)+change-preview(view_contents {})+change-preview-window:hidden:hidden|+{1}+3/3" \
-	--bind "?:transform:[[ ! \$FZF_PROMPT =~ Help ]] &&
-		echo 'change-prompt(Help: )+change-preview-window(~0:+1)+change-preview:print_help_text' ||
+	--bind "?:transform:[[ ! \$FZF_PROMPT =~ \"$fzf_prompt_helpABC\" ]] &&
+		echo 'change-prompt($fzf_prompt_helpABC)+change-preview-window(~0:+1)+change-preview:print_help_text' ||
 		echo 'change-prompt($default_fzf_prompt)+change-preview-window(+\{1}+3/3)+change-preview:\view_contents \{}'" \
 	--delimiter '\t|\s\s+' \
 	--disabled \
