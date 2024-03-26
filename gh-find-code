@@ -805,7 +805,9 @@ fzf_basic_style \
 	--bind "start:execute-silent(echo \${PPID-} >>$store_fzf_ppids)+reload:gh_query {fzf:query}" \
 	--bind 'ctrl-b:execute-silent:command gh browse --repo {4} {5}:{1}' \
 	--bind 'ctrl-h:execute:view_history_commands' \
-	--bind $'ctrl-o:execute:[[ $FZF_MATCH_COUNT -ge 1 ]] && open_in_editor=true view_contents {}' \
+	--bind "ctrl-o:transform:[[ \$FZF_MATCH_COUNT -ge 1 && $EDITOR =~ ^(code|codium)$ ]] &&
+		echo 'execute-silent:open_in_editor=true \view_contents \{}' ||
+		echo 'execute:open_in_editor=true \view_contents \{}'" \
 	--bind "ctrl-p:transform-query:echo repo:{4}" \
 	--bind 'ctrl-r:reload:gh_user_limit=100;gh_query {fzf:query}' \
 	--bind "ctrl-t:transform:[[ ! \$FZF_PROMPT == \"$fzf_prompt_fuzzyAB\" ]] &&
