@@ -756,6 +756,7 @@ view_history_commands() {
 		header_color="yellow"
 		header_string="No history entries yet. Check back on your next run. Press 'esc' to exit."
 	fi
+	echo "hold" >"$store_hold_gh_query_loop"
 	# the extra pipe for 'bat' is to enhance the text visibility
 	history_command=$'command tail -r "$gh_find_code_history" | command nl -s "\t" -n ln -w 3 | command '$bat_executable' --plain --color=always'
 	selection=$(
