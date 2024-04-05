@@ -48,19 +48,19 @@ gh find-code [Flags] [Search query]
 | `-l`  | limit the number of listed results (default 30, max 100)      |
 | `-h`  | help                                                          |
 
-| Key Bindings fzf            | Description                          |
-| --------------------------- | ------------------------------------ |
-| <kbd>?</kbd>                | help                                 |
-| <kbd>ctrl</kbd><kbd>b</kbd> | open the file in the browser         |
-| <kbd>ctrl</kbd><kbd>h</kbd> | display the history commands         |
-| <kbd>ctrl</kbd><kbd>o</kbd> | open the file content in the editor  |
-| <kbd>ctrl</kbd><kbd>p</kbd> | replace query with "repo:owner/name" |
-| <kbd>ctrl</kbd><kbd>r</kbd> | reload with up to 100 results        |
-| <kbd>ctrl</kbd><kbd>t</kbd> | toggle between Code and Fuzzy search |
-| <kbd>ctrl</kbd><kbd>x</kbd> | open the search query in the browser |
-| <kbd>enter</kbd>            | open the file in the pager           |
-| <kbd>tab</kbd>              | toggle the file preview              |
-| <kbd>esc</kbd>              | quit                                 |
+| Key Bindings fzf                | Description                          |
+| ------------------------------- | ------------------------------------ |
+| <kbd>?</kbd>                    | help                                 |
+| <kbd>ctrl</kbd><kbd>b</kbd>     | open the file in the browser         |
+| <kbd>ctrl</kbd><kbd>o</kbd>     | open the file content in the editor  |
+| <kbd>ctrl</kbd><kbd>p</kbd>     | replace query with "repo:owner/name" |
+| <kbd>ctrl</kbd><kbd>r</kbd>     | reload with up to 100 results        |
+| <kbd>ctrl</kbd><kbd>space</kbd> | display the history commands         |
+| <kbd>ctrl</kbd><kbd>t</kbd>     | toggle between Code and Fuzzy search |
+| <kbd>ctrl</kbd><kbd>x</kbd>     | open the search query in the browser |
+| <kbd>enter</kbd>                | open the file in the pager           |
+| <kbd>tab</kbd>                  | toggle the file preview              |
+| <kbd>esc</kbd>                  | quit                                 |
 
 ---
 
@@ -139,8 +139,8 @@ export FZF_DEFAULT_OPTS="
 
 ### History
 - The `gh_find_code_history.txt` file stores successfully completed unique commands. All commands
-  can be viewed with <kbd>⌃ Control</kbd> + <kbd>H</kbd>. In case of duplicates, only the most
-  recent entry is preserved. The maximum number of command entries is 250 by default, but this can
+  can be viewed with <kbd>⌃ Control</kbd> + <kbd>Space</kbd>. In case of duplicates, only the most
+  recent entry is preserved. The maximum number of command entries is 500 by default, but this can
   be overridden by assigning a value to the `MAX_LINES_HISTORY` variable.
 
 ```sh
