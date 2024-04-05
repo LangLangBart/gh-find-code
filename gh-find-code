@@ -43,7 +43,7 @@ fzf_prompt_helpABC="$(printf "%b?? Help: %b" "$CYAN_NORMAL" "$COLOR_RESET")"
 
 FZF_API_KEY="$(command head -c 32 /dev/urandom | command base64)"
 BAT_THEME=${BAT_THEME:-Monokai Extended}
-MAX_LINES_HISTORY=${MAX_LINES_HISTORY:-250}
+MAX_LINES_HISTORY=${MAX_LINES_HISTORY:-500}
 # Bash is required to use exported functions when the default shell is not bash.
 SHELL=$(which bash)
 gh_find_code_history="${BASH_SOURCE%/*}/gh_find_code_history.txt"
@@ -176,17 +176,17 @@ ${WHITE_BOLD}Flags${COLOR_RESET}
   ${GREEN_NORMAL}-h${COLOR_RESET}  help
 
 ${WHITE_BOLD}Hotkeys${COLOR_RESET}
-  ${GREEN_NORMAL}?     ${COLOR_RESET}  help
-  ${GREEN_NORMAL}ctrl-b${COLOR_RESET}  open the file in the browser
-  ${GREEN_NORMAL}ctrl-h${COLOR_RESET}  display the history commands
-  ${GREEN_NORMAL}ctrl-o${COLOR_RESET}  open the file content in the editor
-  ${GREEN_NORMAL}ctrl-p${COLOR_RESET}  replace query with "repo:owner/name"
-  ${GREEN_NORMAL}ctrl-r${COLOR_RESET}  reload with up to 100 results
-  ${GREEN_NORMAL}ctrl-t${COLOR_RESET}  toggle between Code and Fuzzy search
-  ${GREEN_NORMAL}ctrl-x${COLOR_RESET}  open the search query in the browser
-  ${GREEN_NORMAL}enter ${COLOR_RESET}  open the file in the pager
-  ${GREEN_NORMAL}tab   ${COLOR_RESET}  toggle the file preview
-  ${GREEN_NORMAL}esc   ${COLOR_RESET}  quit
+  ${GREEN_NORMAL}?         ${COLOR_RESET}  help
+  ${GREEN_NORMAL}ctrl-b    ${COLOR_RESET}  open the file in the browser
+  ${GREEN_NORMAL}ctrl-o    ${COLOR_RESET}  open the file content in the editor
+  ${GREEN_NORMAL}ctrl-p    ${COLOR_RESET}  replace query with "repo:owner/name"
+  ${GREEN_NORMAL}ctrl-r    ${COLOR_RESET}  reload with up to 100 results
+  ${GREEN_NORMAL}ctrl-space${COLOR_RESET}  display the history commands
+  ${GREEN_NORMAL}ctrl-t    ${COLOR_RESET}  toggle between Code and Fuzzy search
+  ${GREEN_NORMAL}ctrl-x    ${COLOR_RESET}  open the search query in the browser
+  ${GREEN_NORMAL}enter     ${COLOR_RESET}  open the file in the pager
+  ${GREEN_NORMAL}tab       ${COLOR_RESET}  toggle the file preview
+  ${GREEN_NORMAL}esc       ${COLOR_RESET}  quit
 
 ${WHITE_BOLD}Search query examples${COLOR_RESET}
   ${DARK_GRAY}# searches only in the 'junegunn/fzf' repo for 'FZF_PORT'${COLOR_RESET}
@@ -342,36 +342,47 @@ show_api_limits() {
 		--header "$gh_rest_api_version" \
 		--jq \
 		'(["List API Limits", "Used/Limit", "Resetting"] | (., map(length*"¯"))),
-						(.resources | to_entries[] | {
-							name: .key,
-							used_limit: "\(.value.used)/\(.value.limit)",
-							reset: "\(.value.reset | strflocaltime("%H:%M:%S %Z") ) (\((.value.reset - now) | (./60|ceil))m)"
-						}  | [.name, .used_limit, .reset]) | @tsv' |
+		(.resources | to_entries[] | {
+			name: .key,
+			used_limit: "\(.value.used)/\(.value.limit)",
+			reset: "\(.value.reset | strflocaltime("%H:%M:%S %Z") ) (\((.value.reset - now) | (./60|ceil))m)"
+		}  | [.name, .used_limit, .reset]) | @tsv' |
 		command column -ts $'\t' |
 		command "$bat_executable" --color=always --plain --language COMMIT_EDITMSG
 }
 
+# Check if the prompt is our default prompt and switch back to it if not
+reset_default_prompt() {
+	if [[ $FZF_PROMPT != "$default_fzf_prompt" ]]; then
+		curl_custom "rebind(tab,resize)+change-prompt($default_fzf_prompt)+change-preview-window(nowrap)+change-preview:view_contents {}"
+	fi
+}
 # This function queries the GitHub search API with the provided string. It then downloads the files
 # for each result. To speed up the process, file downloads are executed in the background. The
 # script iterates through the returned search results, allowing a 2s wait time before a file will be
 # skipped. The function returns a list containing the line number of the first matched word in that
 # file, the valid 'bat' file extension for syntax highlighting, the index, repo name, and file path.
 gh_query() {
-	local data items total_count total_count_si_format skip_count
+	local trimmed_query data items total_count total_count_si_format skip_count
 	local index owner_repo_name file_name file_path patterns
 	local file_extension bat_langs sanitized_patterns sanitized_owner_repo_name sanitized_file_path
 	local matched_line error_encountered update_preview_window_size redirect_location index_color
 	local base_name dir_name
 	declare -a line_numbers
 	if [[ -z $FZF_QUERY ]]; then
+		# in cases where the user enters a space, causing a failure in search, and then deletes the
+		# space, the prompt needs to be reset
+		reset_default_prompt
 		curl_custom "transform-header:printf '%b? help · esc quit\nPlease enter a search query.%b' '$DARK_GRAY' '$COLOR_RESET'"
 		return
 	fi
 
+	# delete leading and trailing whitespace from the query
+	IFS=$' \t' read -r trimmed_query <<<"$FZF_QUERY"
 	# If the query is the same as before, don't bother running it again, provided that the results
 	# of the last query are still there and there was no error. Useful when switching between fuzzy
 	# mode and search mode.
-	current_query_signature=$(echo -n "${FZF_QUERY}${gh_user_limit}")
+	current_query_signature=$(echo -n "${trimmed_query}${gh_user_limit}")
 	if [[ -s $store_input_list && -s $store_current_header && ! -s $store_gh_search_debug &&
 		$current_query_signature == "$(<"$store_last_query_signature")" ]]; then
 		curl_custom "reload(command cat $store_input_list)+change-header:$(<"$store_current_header")"
@@ -421,12 +432,10 @@ gh_query() {
 		curl_custom "unbind(tab,resize)+change-prompt($fzf_prompt_failure)+change-preview-window(99%:nohidden:wrap:~0:+1)+change-preview(command cat $store_gh_search_debug)+transform-header:printf '%bCheck preview window, query syntax, internet connection, ...%b' '$RED_NORMAL' '$COLOR_RESET'"
 		return
 	else
+		reset_default_prompt
 		# Add successful queries to the history only when there was at least one result
 		[[ ${data:0:1} != "0" ]] && add_history
 
-		if [[ $FZF_PROMPT == "$fzf_prompt_failure" ]]; then
-			curl_custom "rebind(tab,resize)+change-prompt($default_fzf_prompt)+change-preview-window(nowrap)+change-preview:view_contents {}"
-		fi
 		({
 			# first line
 			IFS=' ' read -r items total_count
@@ -764,8 +773,8 @@ view_history_commands() {
 			--bind "change:first" \
 			--bind "start:execute-silent(echo \${PPID-} >>$store_fzf_ppids)+reload:$history_command" \
 			--bind "ctrl-d:reload:remove_history {2..}; $history_command" \
-			--bind 'ctrl-h:abort' \
 			--bind "ctrl-r:reload:$history_command" \
+			--bind 'ctrl-space:abort' \
 			--bind 'esc:abort' \
 			--color "header:${header_color:--1}" \
 			--header "${header_string:-"enter select · ^d delete an entry · esc quit"}" \
@@ -805,12 +814,12 @@ fzf_basic_style \
 	--bind "resize:transform:preview_transformer" \
 	--bind "start:execute-silent(echo \${PPID-} >>$store_fzf_ppids)+reload:gh_query {fzf:query}" \
 	--bind 'ctrl-b:execute-silent:command gh browse --repo {4} {5}:{1}' \
-	--bind 'ctrl-h:execute:view_history_commands' \
 	--bind "ctrl-o:transform:[[ \$FZF_MATCH_COUNT -ge 1 && $EDITOR =~ ^(code|codium)$ ]] &&
 		echo 'execute-silent:open_in_editor=true \view_contents \{}' ||
 		echo 'execute:open_in_editor=true \view_contents \{}'" \
 	--bind "ctrl-p:transform-query:echo repo:{4}" \
 	--bind 'ctrl-r:reload:gh_user_limit=100;gh_query {fzf:query}' \
+	--bind 'ctrl-space:execute:view_history_commands' \
 	--bind "ctrl-t:transform:[[ ! \$FZF_PROMPT == \"$fzf_prompt_fuzzyAB\" ]] &&
 		echo 'unbind(change)+change-prompt($fzf_prompt_fuzzyAB)+enable-search+transform-query:echo \{fzf:query} > $store_search_string; command cat $store_fuzzy_search_string' ||
 		echo 'rebind(change)+change-prompt($default_fzf_prompt)+disable-search+transform-query:echo \{fzf:query} > $store_fuzzy_search_string; command cat $store_search_string'" \
