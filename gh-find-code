@@ -810,15 +810,15 @@ preview_transformer() {
 # TODO: The hotkeys 'ctrl-t' and '?' may cause issues if used during certain operations; a solution
 # is needed to address this complexity.
 fzf_basic_style \
-	--bind "change:first+reload:command sleep 0.5; gh_query {fzf:query}" \
+	--bind "change:first+reload:command sleep 0.5; gh_query" \
 	--bind "resize:transform:preview_transformer" \
-	--bind "start:execute-silent(echo \${PPID-} >>$store_fzf_ppids)+reload:gh_query {fzf:query}" \
+	--bind "start:execute-silent(echo \${PPID-} >>$store_fzf_ppids)+reload:gh_query" \
 	--bind 'ctrl-b:execute-silent:command gh browse --repo {4} {5}:{1}' \
 	--bind "ctrl-o:transform:[[ \$FZF_MATCH_COUNT -ge 1 && $EDITOR =~ ^(code|codium)$ ]] &&
 		echo 'execute-silent:open_in_editor=true \view_contents \{}' ||
 		echo 'execute:open_in_editor=true \view_contents \{}'" \
 	--bind "ctrl-p:transform-query:echo repo:{4}" \
-	--bind 'ctrl-r:reload:gh_user_limit=100;gh_query {fzf:query}' \
+	--bind 'ctrl-r:reload:gh_user_limit=100 gh_query' \
 	--bind 'ctrl-space:execute:view_history_commands' \
 	--bind "ctrl-t:transform:[[ ! \$FZF_PROMPT == \"$fzf_prompt_fuzzyAB\" ]] &&
 		echo 'unbind(change)+change-prompt($fzf_prompt_fuzzyAB)+enable-search+transform-query:echo \{fzf:query} > $store_search_string; command cat $store_fuzzy_search_string' ||
