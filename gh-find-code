@@ -96,20 +96,24 @@ store_gh_content_debug="${debug_directory}/gh_content_debug"
 
 # Terminates processes whose IDs are stored in the given file and empty the file
 kill_processes() {
-	if [[ -s $1 ]]; then
-		command awk '!x[$0]++' "$1" | while read -r process; do
+	local process_ids_file=$1
+	if [[ -s $process_ids_file ]]; then
+		command awk '!x[$0]++' "$process_ids_file" | while read -r process; do
 			if command kill -0 "$process" 2>/dev/null; then
 				# Gracefully shuts down a process with signal 15 (SIGTERM)
-				if ! command kill -15 "$process" 2>/dev/null; then
-					# Fallback to ending PID process with signal 9 (SIGKILL)
-					if ! command kill -9 "$process" 2>/dev/null; then
-						echo "Failed to kill PID $process" >&2
-					fi
-				fi
+				command kill -15 "$process" 2>/dev/null
 			fi
+			# TODO: Signals are delivered asynchronously, and time is needed to shut down before we
+			# can check again and use 'kill -9' if the process is still alive . How to best handle
+			# these cases without adding unnecessary delays?
+
+			# if command kill -0 "$process" 2>/dev/null; then
+			# 	# Fallback to ending PID process with signal 9 (SIGKILL)
+			# 	command kill -9 "$process" 2>/dev/null
+			# fi
 		done
 		# clear the file
-		: >"$1"
+		: >"$process_ids_file"
 	fi
 }
 
