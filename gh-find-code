@@ -456,14 +456,16 @@ gh_query() {
 				command cp "$store_file_contents" "${store_file_contents}_${index}"
 				command cp "$store_file_contents" "${store_file_contents}_${index}_line_numbers"
 				(
-					if command gh api "repos/${sanitized_owner_repo_name}/contents/${sanitized_file_path}" \
+					# Run gh api commands with lower priority using nice
+					# https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap03.html#tag_03_244
+					if command nice -n 20 command gh api "repos/${sanitized_owner_repo_name}/contents/${sanitized_file_path}" \
 						--cache "$gh_default_cache_time" \
 						--header "$gh_accept_raw" \
 						--header "$gh_rest_api_version" \
 						>"${store_file_contents}_${index}" \
 						2>"$store_gh_content_debug"; then
 						:
-					elif command gh api "https://raw.githubusercontent.com/${sanitized_owner_repo_name}/HEAD/${sanitized_file_path}" \
+					elif command nice -n 20 command gh api "https://raw.githubusercontent.com/${sanitized_owner_repo_name}/HEAD/${sanitized_file_path}" \
 						--cache "$gh_default_cache_time" \
 						--header "$gh_accept_raw" \
 						--header "$gh_rest_api_version" \
