@@ -69,9 +69,8 @@ python_executable=""
 # associative arrays with 'declare -A' was unsuccessful as I couldn't access the associated
 # filename in child processes.
 
-date_prefix=$(command date -u +%Y-%m-%dT%H-%M-%S)
 # Default directory for trivial files
-scratch_directory=$(command mktemp -dt "$date_prefix.gh_find_code") || die "Can't create directory."
+scratch_directory=$(command mktemp -d)
 store_input_list="${scratch_directory}/input_list"
 store_tee_append="${scratch_directory}/tee_append"
 store_file_contents="${scratch_directory}/file_contents"
@@ -86,7 +85,7 @@ store_last_query_signature="${scratch_directory}/last_search_setup"
 store_current_header="${scratch_directory}/current_header"
 
 # Debug directory
-debug_directory=$(command mktemp -dt "$date_prefix.gh_find_code.debug") || die "Can't create debug directory."
+debug_directory=$(command mktemp -d)
 store_bat_debug="${debug_directory}/bat_debug"
 store_grep_extended_debug="${debug_directory}/grep_extended_debug"
 store_gh_search_debug="${debug_directory}/gh_search_debug"
