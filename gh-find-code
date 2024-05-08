@@ -55,8 +55,8 @@ gh_accept_json="Accept: application/vnd.github+json"
 gh_accept_raw="Accept: application/vnd.github.raw"
 gh_accept_text_match="Accept: application/vnd.github.text-match+json"
 gh_rest_api_version="X-GitHub-Api-Version:2022-11-28"
-# https://github.com/junegunn/fzf/commit/5e6788c
-min_fzf_version="0.47.0"
+# https://github.com/junegunn/fzf/releases/tag/0.52.0
+min_fzf_version="0.52.0"
 # a bug with 'gh-browse' with relative paths was fixed
 # https://github.com/cli/cli/issues/7674
 min_gh_version="2.37.0"
@@ -206,7 +206,7 @@ EOF
 
 # ====================== parse command-line options =======================
 
-while getopts "dhl:" value; do
+while getopts ":dhl:" value; do
 	case $value in
 		d)
 			default_fzf_prompt="$(printf "%b❮ 𝙳𝚎𝚋𝚞𝚐 𝙼𝚘𝚍𝚎 ❯ Code: %b" "$YELLOW_NORMAL" "$COLOR_RESET")"
@@ -214,6 +214,9 @@ while getopts "dhl:" value; do
 			debug_mode="true"
 			;;
 		l)
+			if ! [[ $OPTARG =~ ^[0-9]+$ ]]; then
+				die "Value is not a valid number: '$OPTARG'"
+			fi
 			if ((OPTARG < 1 || OPTARG > 100)); then
 				die "Value for '-l' must be between 1 and 100"
 			fi
@@ -223,7 +226,7 @@ while getopts "dhl:" value; do
 			print_help_text
 			exit 0
 			;;
-		*) die "Invalid Option: -$OPTARG" ;;
+		*) die "Invalid Option: -${OPTARG-}" ;;
 	esac
 done
 shift "$((OPTIND - 1))"
@@ -745,7 +748,7 @@ fzf_basic_style() {
 		--bind 'scroll-up:offset-up,scroll-down:offset-down' \
 		--bind "ctrl-c:execute:kill_processes $store_fzf_ppids" \
 		--border block \
-		--color 'bg+:233,bg:235,gutter:235,border:238,scrollbar:235' \
+		--color 'bg+:233,bg:235,gutter:235,border:238:dim,scrollbar:235' \
 		--color 'preview-bg:234,preview-border:236,preview-scrollbar:237' \
 		--color 'fg+:255,fg:regular:250,hl:40,hl+:40' \
 		--color 'pointer:9,spinner:92,marker:46' \
@@ -753,9 +756,11 @@ fzf_basic_style() {
 		--ellipsis '' \
 		--height=100% \
 		--header-lines 0 \
+		--highlight-line \
 		--no-multi \
 		--info hidden \
 		--layout reverse \
+		--pointer '▶' \
 		--scroll-off 3 \
 		--scrollbar '│▐' \
 		--separator '' \
@@ -819,7 +824,7 @@ fzf_basic_style \
 	--bind "resize:transform:preview_transformer" \
 	--bind "start:execute-silent(echo \${PPID-} >>$store_fzf_ppids)+reload:gh_query" \
 	--bind 'ctrl-b:execute-silent:command gh browse --repo {4} {5}:{1}' \
-	--bind "ctrl-o:transform:[[ \$FZF_MATCH_COUNT -ge 1 && $EDITOR =~ ^(code|codium)$ ]] &&
+	--bind "ctrl-o:transform:[[ \$FZF_MATCH_COUNT -ge 1 && ${EDITOR##*/} =~ ^(code|codium)$ ]] &&
 		echo 'execute-silent:open_in_editor=true \view_contents \{}' ||
 		echo 'execute:open_in_editor=true \view_contents \{}'" \
 	--bind "ctrl-p:transform-query:echo repo:{4}" \
@@ -839,7 +844,6 @@ fzf_basic_style \
 	--disabled \
 	--listen \
 	--nth=2..,.. \
-	--pointer '▶' \
 	--preview 'view_contents {}' \
 	--preview-window 'border-block:~3:+{1}+3/3:nohidden:bottom:nowrap:66%' \
 	--prompt "$default_fzf_prompt" \
