@@ -157,11 +157,11 @@ kill_processes() {
 cleanup() {
 	kill_processes "$store_query_pids"
 
-	$debug_mode && printf "%bDebug mode was ON, the following files weren't deleted.%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
 	command rm -rf "$scratch_directory" 2>/dev/null
 	if ! $debug_mode; then
 		command rm -rf "$debug_directory" 2>/dev/null
 	else
+		printf "%bDebug mode was active. The following files have not been deleted:%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
 		find "$debug_directory" -mindepth 1 2>/dev/null | while read -r matching_file; do
 			if [[ ! -s $matching_file ]]; then
 				command rm -f "$matching_file"
