@@ -1,19 +1,50 @@
 #!/usr/bin/env bash
-set -o allexport -o errexit -o nounset -o pipefail
+set -o allexport -o errexit -o errtrace -o nounset -o pipefail
 # https://www.gnu.org/software/bash/manual/bash.html#The-Set-Builtin
 
 # ====================== TODO =======================
 
-# There is no regex support currently for the REST API, look out if there are changes or
-# maybe the GraphQL API gets the ability to search code. Currently only ISSUE, REPOSITORY,
-# USER and DISCUSSION are supported.
-
-# Check supported search types in the GraphQL API: gh api graphql --raw-field query=$'{
-# __type(name: "SearchType") { enumValues { name } }}' \
-# --jq '[.data.__type.enumValues[].name] | join(", ")'
-
+# TODO: lookout for Github adding regex support to the REST or GraphQL API
 # TODO: add tests - https://github.com/dodie/testing-in-bash
 # TODO: replace python with a more typical bash solution
+
+# ====================== Error Handling =======================
+
+die() {
+	echo ERROR: "$*" >&2
+	exit 1
+}
+
+BAT_THEME=${BAT_THEME:-Monokai Extended}
+bat_executable=""
+# Check for 'bat' early, as it is needed for the error_handler function.
+for value in bat batcat; do
+	if command -v $value >/dev/null; then
+		bat_executable="$value"
+		break
+	fi
+done
+builtin unset value
+[[ -z $bat_executable ]] && die "'bat' was not found."
+
+# Enable 'errtrace' to ensure the ERR trap is inherited by functions, command substitutions and
+# commands executed in a subshell environment.
+error_handler() {
+	local lineno=$1 msg=$2 exit_code="${3:-1}"
+	# Ignore SIGINT (Ctrl+C), which results from forcefully terminating 'fzf'.
+	if [[ $(kill -l "$3" 2>/dev/null) =~ INT$ ]]; then
+		:
+	else
+		{
+			echo "ERROR TRACE: ${BASH_SOURCE[0]##*/}:$lineno command '$msg' exited with status $exit_code"
+			command "$bat_executable" --color always --number --language bash \
+				--terminal-width $((${COLUMNS:-$(tput cols)} - 4)) --highlight-line "$lineno" \
+				--line-range=$((lineno - 3)):+7 "${BASH_SOURCE[0]}" | command sed 's/^/  /;4s/  />>/'
+		} >&2
+	fi
+	exit "$exit_code"
+}
+trap 'error_handler $LINENO "$BASH_COMMAND" $?' ERR
 
 # ====================== set variables =======================
 
@@ -42,7 +73,6 @@ fzf_prompt_fuzzyAB="$(printf "%b➤ Fuzzy:%b %b" "$CYAN_INVERT" "$CYAN_NORMAL" "
 fzf_prompt_helpABC="$(printf "%b?? Help: %b" "$CYAN_NORMAL" "$COLOR_RESET")"
 
 FZF_API_KEY="$(command head -c 32 /dev/urandom | command base64)"
-BAT_THEME=${BAT_THEME:-Monokai Extended}
 MAX_LINES_HISTORY=${MAX_LINES_HISTORY:-500}
 # Bash is required to use exported functions when the default shell is not bash.
 SHELL=$(which bash)
@@ -60,7 +90,6 @@ min_fzf_version="0.52.0"
 # a bug with 'gh-browse' with relative paths was fixed
 # https://github.com/cli/cli/issues/7674
 min_gh_version="2.37.0"
-bat_executable=""
 # requires 'urllib.parse'
 # https://docs.python.org/3/library/urllib.parse.html
 min_python_version="3.0.0"
@@ -75,7 +104,6 @@ store_input_list="${scratch_directory}/input_list"
 store_tee_append="${scratch_directory}/tee_append"
 store_file_contents="${scratch_directory}/file_contents"
 store_skip_count="${scratch_directory}/skip_count"
-store_fzf_ppids="${scratch_directory}/fzf_ppids"
 store_query_pids="${scratch_directory}/query_pids"
 store_fuzzy_search_string="${scratch_directory}/fuzzy_search_string"
 store_search_string="${scratch_directory}/search_string"
@@ -91,7 +119,7 @@ store_grep_extended_debug="${debug_directory}/grep_extended_debug"
 store_gh_search_debug="${debug_directory}/gh_search_debug"
 store_gh_content_debug="${debug_directory}/gh_content_debug"
 
-# =========================== basics ============================
+# ===================== cleanup functions ==========================
 
 # Terminates processes whose IDs are stored in the given file and empty the file
 kill_processes() {
@@ -117,7 +145,6 @@ kill_processes() {
 }
 
 cleanup() {
-	kill_processes "$store_fzf_ppids"
 	kill_processes "$store_query_pids"
 
 	$debug_mode && printf "%bDebug mode was ON, the following files weren't deleted.%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
@@ -135,12 +162,9 @@ cleanup() {
 	fi
 }
 
-die() {
-	echo ERROR: "$*" >&2
-	exit 1
-}
-
 trap cleanup EXIT SIGHUP SIGINT
+
+# ===================== helper functions ==========================
 
 # This function validates the version of a tool.
 check_version() {
@@ -153,7 +177,6 @@ check_version() {
 
 	IFS='.' read -ra ver_parts <<<"$user_version"
 	IFS='.' read -ra threshold_parts <<<"$threshold"
-
 	for i in "${!threshold_parts[@]}"; do
 		if ((i >= ${#ver_parts[@]})) || ((ver_parts[i] < threshold_parts[i])); then
 			$on_error "Your '$tool' version '$user_version' is insufficient. The minimum required version is '$threshold'."
@@ -161,6 +184,50 @@ check_version() {
 			break
 		fi
 	done
+}
+
+validate_environment() {
+	# Rule of Thumb: If it's listed under 'Utilities' in this link, don't check for it
+	# https://pubs.opengroup.org/onlinepubs/9699919799/utilities/contents.html
+	for value in column curl fzf gh; do
+		if ! command -v $value >/dev/null; then
+			die "'$value' was not found."
+		fi
+	done
+	check_version fzf "$min_fzf_version"
+	check_version gh "$min_gh_version"
+
+	# Iterate over the possible python versions and assign python_executable
+	for value in python python3; do
+		if command -v $value >/dev/null &&
+			[[ -z $(check_version "$value" "$min_python_version" echo) ]]; then
+			python_executable="$value"
+			break
+		fi
+	done
+	# If no suitable python version was found, terminate the script
+	[[ -z $python_executable ]] && die "No suitable 'python' version found."
+
+	# Verify if there are at least two spaces between columns. The delimiter in 'fzf' is set to
+	# '\t' or '\s\s+' to separate fields. By default, the 'column' command should separate any
+	# columns with two spaces. If this is not the case, you cannot proceed. It appears that
+	# older versions, e.g. BSD 1997, of 'column' had a default of two spaces.
+	# https://github.com/freebsd/freebsd-src/blob/0da30e9aa/usr.bin/column/column.c#L245
+	# Newer versions allow the output-separator to be defined.
+	# https://github.com/util-linux/util-linux/commit/47bd8ddc
+	# https://github.com/util-linux/util-linux/issues/1699#issuecomment-1140972918
+	# https://man7.org/linux/man-pages/man1/column.1.html
+	if [[ $(command column -t <<<"A Z" 2>/dev/null) != *"  "* ]]; then
+		die "Your 'column' command does not separate columns with at least two spaces. Please report this issue, stating your operating system and 'column' version."
+	fi
+
+	# If the history file is empty and MAX_LINES_HISTORY is greater than zero, add some examples.
+	if [[ ! -s $gh_find_code_history ]] && ((MAX_LINES_HISTORY)); then
+		command cat <<'EOF' >"$gh_find_code_history"
+repo:junegunn/fzf FZF_PORT
+extension:rs "Hello, world!"
+EOF
+	fi
 }
 
 # IMPORTANT: Keep it in sync with the readme.md
@@ -203,88 +270,6 @@ EOF
 	)
 	echo -e "$help_text"
 }
-
-# ====================== parse command-line options =======================
-
-while getopts ":dhl:" value; do
-	case $value in
-		d)
-			default_fzf_prompt="$(printf "%b❮ 𝙳𝚎𝚋𝚞𝚐 𝙼𝚘𝚍𝚎 ❯ Code: %b" "$YELLOW_NORMAL" "$COLOR_RESET")"
-			export GH_DEBUG="api"
-			debug_mode="true"
-			;;
-		l)
-			if ! [[ $OPTARG =~ ^[0-9]+$ ]]; then
-				die "Value is not a valid number: '$OPTARG'"
-			fi
-			if ((OPTARG < 1 || OPTARG > 100)); then
-				die "Value for '-l' must be between 1 and 100"
-			fi
-			gh_user_limit="${OPTARG}"
-			;;
-		h)
-			print_help_text
-			exit 0
-			;;
-		*) die "Invalid Option: -${OPTARG-}" ;;
-	esac
-done
-shift "$((OPTIND - 1))"
-
-# ====================== check requirements =======================
-
-# Rule of Thumb: If it's listed under 'Utilities' in this link, don't check for it
-# https://pubs.opengroup.org/onlinepubs/9699919799/utilities/contents.html
-for value in column curl fzf gh; do
-	if ! command -v $value >/dev/null; then
-		die "'$value' was not found."
-	fi
-done
-check_version fzf "$min_fzf_version"
-check_version gh "$min_gh_version"
-
-# Iterate over the possible bat names and assign bat_executable
-for value in bat batcat; do
-	if command -v $value >/dev/null; then
-		bat_executable="$value"
-		break
-	fi
-done
-[[ -z $bat_executable ]] && die "'bat' was not found."
-
-# Iterate over the possible python versions and assign python_executable
-for value in python python3; do
-	if command -v $value >/dev/null &&
-		[[ -z $(check_version "$value" "$min_python_version" echo) ]]; then
-		python_executable="$value"
-		break
-	fi
-done
-# If no suitable python version was found, terminate the script
-[[ -z $python_executable ]] && die "No suitable 'python' version found."
-
-# Verify if there are at least two spaces between columns. The delimiter in 'fzf' is set to
-# '\t' or '\s\s+' to separate fields. By default, the 'column' command should separate any
-# columns with two spaces. If this is not the case, you cannot proceed. It appears that
-# older versions, e.g. BSD 1997, of 'column' had a default of two spaces.
-# https://github.com/freebsd/freebsd-src/blob/0da30e9aa/usr.bin/column/column.c#L245
-# Newer versions allow the output-separator to be defined.
-# https://github.com/util-linux/util-linux/commit/47bd8ddc
-# https://github.com/util-linux/util-linux/issues/1699#issuecomment-1140972918
-# https://man7.org/linux/man-pages/man1/column.1.html
-if [[ $(command column -t <<<"A Z" 2>/dev/null) != *"  "* ]]; then
-	die "Your 'column' command does not separate columns with at least two spaces. Please report this issue, stating your operating system and 'column' version."
-fi
-
-# If the history file is empty and MAX_LINES_HISTORY is greater than zero, add some examples.
-if [[ ! -s $gh_find_code_history ]] && ((MAX_LINES_HISTORY)); then
-	command cat <<'EOF' >"$gh_find_code_history"
-repo:junegunn/fzf FZF_PORT
-extension:rs "Hello, world!"
-EOF
-fi
-
-# ===================== helper functions ==========================
 
 # send a POST request to fzf
 curl_custom() {
@@ -746,7 +731,6 @@ fzf_basic_style() {
 	: | command fzf -- \
 		--ansi \
 		--bind 'scroll-up:offset-up,scroll-down:offset-down' \
-		--bind "ctrl-c:execute:kill_processes $store_fzf_ppids" \
 		--border block \
 		--color 'bg+:233,bg:235,gutter:235,border:238:dim,scrollbar:235' \
 		--color 'preview-bg:234,preview-border:236,preview-scrollbar:237' \
@@ -778,10 +762,13 @@ view_history_commands() {
 	echo "hold" >"$store_hold_gh_query_loop"
 	# the extra pipe for 'bat' is to enhance the text visibility
 	history_command=$'command tail -r "$gh_find_code_history" | command nl -s "\t" -n ln -w 3 | command '$bat_executable' --plain --color=always'
+	# The 'ctrl-c' keybind immediately closes 'fzf' by terminating this instance and the original
+	# one as well.
 	selection=$(
 		fzf_basic_style \
 			--bind "change:first" \
-			--bind "start:execute-silent(echo \${PPID-} >>$store_fzf_ppids)+reload:$history_command" \
+			--bind "start:reload:$history_command" \
+			--bind "ctrl-c:become:curl_custom 'abort'" \
 			--bind "ctrl-d:reload:remove_history {2..}; $history_command" \
 			--bind "ctrl-r:reload:$history_command" \
 			--bind 'ctrl-space:abort' \
@@ -814,38 +801,70 @@ preview_transformer() {
 	echo "change-preview-window:${lines%.*}"
 }
 
-# NOTE: The 'change-preview-window' action in 'transform' should precede 'change-preview'.
-# NOTE: In the transform action, placeholders and functions using placeholders as arguments must be
-# escaped, e.g. '\view_contents \{}', but not 'print_help_text'.
-# TODO: The hotkeys 'ctrl-t' and '?' may cause issues if used during certain operations; a solution
-# is needed to address this complexity.
-fzf_basic_style \
-	--bind "change:first+reload:command sleep 0.5; gh_query" \
-	--bind "resize:transform:preview_transformer" \
-	--bind "start:execute-silent(echo \${PPID-} >>$store_fzf_ppids)+reload:gh_query" \
-	--bind 'ctrl-b:execute-silent:command gh browse --repo {4} {5}:{1}' \
-	--bind "ctrl-o:transform:[[ \$FZF_MATCH_COUNT -ge 1 && ${EDITOR##*/} =~ ^(code|codium)$ ]] &&
+main() {
+	validate_environment
+
+	# CLI Options
+	while getopts ":dhl:" value; do
+		case $value in
+			d)
+				default_fzf_prompt="$(printf "%b❮ 𝙳𝚎𝚋𝚞𝚐 𝙼𝚘𝚍𝚎 ❯ Code: %b" "$YELLOW_NORMAL" "$COLOR_RESET")"
+				export GH_DEBUG="api"
+				debug_mode="true"
+				;;
+			l)
+				if ! [[ $OPTARG =~ ^[0-9]+$ ]]; then
+					die "Value is not a valid number: '$OPTARG'"
+				fi
+				if ((OPTARG < 1 || OPTARG > 100)); then
+					die "Value for '-l' must be between 1 and 100"
+				fi
+				gh_user_limit="${OPTARG}"
+				;;
+			h)
+				print_help_text
+				exit 0
+				;;
+			*) die "Invalid Option: -${OPTARG-}" ;;
+		esac
+	done
+	shift "$((OPTIND - 1))"
+
+	# NOTE: The 'change-preview-window' action in 'transform' should precede 'change-preview'.
+	# NOTE: In the transform action, placeholders and functions using placeholders as arguments must be
+	# escaped, e.g. '\view_contents \{}', but not 'print_help_text'.
+	# TODO: The hotkeys 'ctrl-t' and '?' may cause issues if used during certain operations; a solution
+	# is needed to address this complexity.
+	fzf_basic_style \
+		--bind "change:first+reload:command sleep 0.5; gh_query" \
+		--bind "resize:transform:preview_transformer" \
+		--bind "start:reload:gh_query" \
+		--bind 'ctrl-b:execute-silent:command gh browse --repo {4} {5}:{1}' \
+		--bind "ctrl-o:transform:[[ \$FZF_MATCH_COUNT -ge 1 && ${EDITOR##*/} =~ ^(code|codium)$ ]] &&
 		echo 'execute-silent:open_in_editor=true \view_contents \{}' ||
 		echo 'execute:open_in_editor=true \view_contents \{}'" \
-	--bind "ctrl-p:transform-query:echo repo:{4}" \
-	--bind 'ctrl-r:reload:gh_user_limit=100 gh_query' \
-	--bind 'ctrl-space:execute:view_history_commands' \
-	--bind "ctrl-t:transform:[[ ! \$FZF_PROMPT == \"$fzf_prompt_fuzzyAB\" ]] &&
+		--bind "ctrl-p:transform-query:echo repo:{4}" \
+		--bind 'ctrl-r:reload:gh_user_limit=100 gh_query' \
+		--bind 'ctrl-space:execute:view_history_commands' \
+		--bind "ctrl-t:transform:[[ ! \$FZF_PROMPT == \"$fzf_prompt_fuzzyAB\" ]] &&
 		echo 'unbind(change)+change-prompt($fzf_prompt_fuzzyAB)+enable-search+transform-query:echo \{fzf:query} > $store_search_string; command cat $store_fuzzy_search_string' ||
 		echo 'rebind(change)+change-prompt($default_fzf_prompt)+disable-search+transform-query:echo \{fzf:query} > $store_fuzzy_search_string; command cat $store_search_string'" \
-	--bind 'ctrl-x:execute-silent:open_query_in_browser {fzf:query}' \
-	--bind $'enter:execute:[[ $FZF_MATCH_COUNT -ge 1 ]] && view_contents {}' \
-	--bind 'esc:become:' \
-	--bind "tab:change-prompt($default_fzf_prompt)+change-preview(view_contents {})+change-preview-window:hidden:hidden|+{1}+3/3" \
-	--bind "?:transform:[[ ! \$FZF_PROMPT =~ \"$fzf_prompt_helpABC\" ]] &&
+		--bind 'ctrl-x:execute-silent:open_query_in_browser {fzf:query}' \
+		--bind $'enter:execute:[[ $FZF_MATCH_COUNT -ge 1 ]] && view_contents {}' \
+		--bind 'esc:become:' \
+		--bind "tab:change-prompt($default_fzf_prompt)+change-preview(view_contents {})+change-preview-window:hidden:hidden|+{1}+3/3" \
+		--bind "?:transform:[[ ! \$FZF_PROMPT =~ \"$fzf_prompt_helpABC\" ]] &&
 		echo 'change-prompt($fzf_prompt_helpABC)+change-preview-window(~0:+1)+change-preview:print_help_text' ||
 		echo 'change-prompt($default_fzf_prompt)+change-preview-window(+\{1}+3/3)+change-preview:\view_contents \{}'" \
-	--delimiter '\t|\s\s+' \
-	--disabled \
-	--listen \
-	--nth=2..,.. \
-	--preview 'view_contents {}' \
-	--preview-window 'border-block:~3:+{1}+3/3:nohidden:bottom:nowrap:66%' \
-	--prompt "$default_fzf_prompt" \
-	--query "$*" \
-	--with-nth=3..
+		--delimiter '\t|\s\s+' \
+		--disabled \
+		--listen \
+		--nth=2..,.. \
+		--preview 'view_contents {}' \
+		--preview-window 'border-block:~3:+{1}+3/3:nohidden:bottom:nowrap:66%' \
+		--prompt "$default_fzf_prompt" \
+		--query "$*" \
+		--with-nth=3..
+}
+
+main "$@"
