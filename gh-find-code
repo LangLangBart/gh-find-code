@@ -36,10 +36,16 @@ error_handler() {
 		:
 	else
 		{
+			echo
 			echo "ERROR TRACE: ${BASH_SOURCE[0]##*/}:$lineno command '$msg' exited with status $exit_code"
-			command "$bat_executable" --color always --number --language bash \
-				--terminal-width $((${COLUMNS:-$(tput cols)} - 4)) --highlight-line "$lineno" \
-				--line-range=$((lineno - 3)):+7 "${BASH_SOURCE[0]}" | command sed 's/^/  /;4s/  />>/'
+			command "$bat_executable" \
+				--color always \
+				--highlight-line "$lineno" \
+				--language bash \
+				--line-range $((lineno - 3)):+7 \
+				--style numbers \
+				--terminal-width $((${COLUMNS:-$(tput cols)} - 4)) "${BASH_SOURCE[0]}" |
+				command sed 's/^/  /;4s/  />>/'
 		} >&2
 	fi
 	exit "$exit_code"
