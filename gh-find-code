@@ -2,13 +2,13 @@
 set -o allexport -o errexit -o errtrace -o nounset -o pipefail
 # https://www.gnu.org/software/bash/manual/bash.html#The-Set-Builtin
 
-# ====================== TODO =======================
-
 # TODO: lookout for Github adding regex support to the REST or GraphQL API
 # TODO: add tests - https://github.com/dodie/testing-in-bash
 # TODO: replace python with a more typical bash solution
 
-# ====================== Error Handling =======================
+###############################################################################
+# Error Handling
+###############################################################################
 
 die() {
 	echo ERROR: "$*" >&2
@@ -46,7 +46,9 @@ error_handler() {
 }
 trap 'error_handler $LINENO "$BASH_COMMAND" $?' ERR
 
-# ====================== set variables =======================
+###############################################################################
+# Set Variables
+###############################################################################
 
 # define colors
 COLOR_RESET='\033[0m'
@@ -119,7 +121,9 @@ store_grep_extended_debug="${debug_directory}/grep_extended_debug"
 store_gh_search_debug="${debug_directory}/gh_search_debug"
 store_gh_content_debug="${debug_directory}/gh_content_debug"
 
-# ===================== cleanup functions ==========================
+###############################################################################
+# Cleanup Functions
+###############################################################################
 
 # Terminates processes whose IDs are stored in the given file and empty the file
 kill_processes() {
@@ -164,7 +168,9 @@ cleanup() {
 
 trap cleanup EXIT SIGHUP SIGINT
 
-# ===================== helper functions ==========================
+###############################################################################
+# Helper Functions
+###############################################################################
 
 # This function validates the version of a tool.
 check_version() {
@@ -866,5 +872,9 @@ main() {
 		--query "$*" \
 		--with-nth=3..
 }
+
+###############################################################################
+# Script Execution
+###############################################################################
 
 main "$@"
