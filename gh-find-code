@@ -325,8 +325,8 @@ add_history() {
 
 # Removing a specified line from the history file.
 remove_history() {
-	# Remove the specified line from the history file
-	command grep --fixed-strings --line-regexp --invert-match "$*" \
+	# Attach '--regexp' directly to its argument to handle leading dashes.
+	command grep --fixed-strings --line-regexp --invert-match --regexp="$*" \
 		"$gh_find_code_history" >"$store_gh_find_code_history_tmp"
 
 	command mv "$store_gh_find_code_history_tmp" "$gh_find_code_history"
