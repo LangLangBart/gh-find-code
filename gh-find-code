@@ -233,6 +233,11 @@ validate_environment() {
 		die "Your 'column' command does not separate columns with at least two spaces. Please report this issue, stating your operating system and 'column' version."
 	fi
 
+	# Check if MAX_LINES_HISTORY is a number
+	if ! [[ $MAX_LINES_HISTORY =~ ^[0-9]+$ ]]; then
+		die "MAX_LINES_HISTORY must be a number."
+	fi
+
 	# If the history file is empty and MAX_LINES_HISTORY is greater than zero, add some examples.
 	if [[ ! -s $gh_find_code_history ]] && ((MAX_LINES_HISTORY)); then
 		command cat <<'EOF' >"$gh_find_code_history"
@@ -323,7 +328,7 @@ add_history() {
 	# in the same pipeline - https://shellcheck.net/wiki/SC2094. This could lead to a race
 	# condition, resulting in the file being erased.
 	command tail -r "$gh_find_code_history" | command awk '{$1=$1}; NF && !x[$0]++' |
-		command grep --invert-match '^$' | command tail -r |
+		command grep --invert-match --regexp='^$' | command tail -r |
 		command tail -n "$MAX_LINES_HISTORY" >"$store_gh_find_code_history_tmp"
 
 	command mv "$store_gh_find_code_history_tmp" "$gh_find_code_history"
