@@ -11,27 +11,26 @@ set -o allexport -o errexit -o errtrace -o nounset -o pipefail
 ###############################################################################
 
 GH_FIND_DEBUG_MODE=${GH_FIND_DEBUG_MODE:-0}
-
 if ((GH_FIND_DEBUG_MODE)); then
 	debug_directory=$(command mktemp -d)
 	store_all_debug="${debug_directory}/all_debug"
 	store_grep_extended_debug="${debug_directory}/grep_extended_debug"
 
-	# Redirect stdout and stderr to the terminal and the debug file
+	# Redirect stdout and stderr to both the terminal and the debug file.
 	exec &> >(command tee -a "$store_all_debug")
 
-	# 'GH_DEBUG' is useful for identifying the reasons behind failed GitHub API calls.
+	# 'GH_DEBUG' is useful for understanding the reasons behind failed GitHub API calls.
 	export GH_DEBUG=api
 
-	# Redirect xtrace output to a file
+	# Redirect xtrace output to a file.
 	exec 6>>"$store_all_debug"
-	# Write the trace output to file descriptor 6
+	# Write the trace output to file descriptor 6.
 	BASH_XTRACEFD=6
 
-	# More verbose execution trace prompt
+	# Use a more detailed execution trace prompt.
 	PS4='+$(date +%Y-%m-%d:%H:%M:%S) ${FUNCNAME[0]:-}:L${LINENO:-}:  '
 	set -o xtrace
-	# Enable xtrace also in all child processes started by 'fzf'
+	# Ensure xtrace is enabled in all child processes started by 'fzf'.
 	execution_shell="$(which bash) -o xtrace -c"
 fi
 
@@ -173,7 +172,6 @@ kill_processes() {
 
 cleanup() {
 	kill_processes "$store_query_pids"
-
 	command rm -rf "$scratch_directory" 2>/dev/null
 	if ((GH_FIND_DEBUG_MODE)); then
 		printf "%bDebug mode was active. The following files have not been deleted:%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
@@ -214,6 +212,7 @@ check_version() {
 }
 
 validate_environment() {
+	local value
 	if ((GH_FIND_DEBUG_MODE)); then
 		default_fzf_prompt="$(printf "%b❮ 𝙳𝚎𝚋𝚞𝚐 𝙼𝚘𝚍𝚎 ❯ Code: %b" "$YELLOW_NORMAL" "$COLOR_RESET")"
 	fi
@@ -537,9 +536,9 @@ gh_query() {
 				fi
 				# This covers special cases where syntax highlighting requires a leading
 				# dot, such as filenames like 'zshrc', '.zshrc' or 'macos.zshrc'
-				if command grep --quiet --word-regexp "^\.${file_extension}$" <<<"$bat_langs"; then
+				if command grep --quiet --word-regexp --regexp="^\.${file_extension}$" <<<"$bat_langs"; then
 					file_extension=".${file_extension}"
-				elif command grep --quiet --word-regexp "^\.${file_name}$" <<<"$bat_langs"; then
+				elif command grep --quiet --word-regexp --regexp="^\.${file_name}$" <<<"$bat_langs"; then
 					file_extension=".${file_name}"
 				fi
 
@@ -778,10 +777,9 @@ view_history_commands() {
 		header_string="No history entries yet. Check back on your next run. Press 'esc' to exit."
 	fi
 	echo "hold" >"$store_hold_gh_query_loop"
-	# the extra pipe for 'bat' is to enhance the text visibility
+	# The additional pipe for 'bat' is used to improve text visibility.
 	history_command=$'command tail -r "$gh_find_code_history" | command nl -s "\t" -n ln -w 3 | command '$bat_executable' --plain --color=always'
-	# The 'ctrl-c' keybind immediately closes 'fzf' by terminating this instance and the original
-	# one as well.
+	# The Ctrl+C keybind instantly closes 'fzf' by terminating both instances.
 	selection=$(
 		fzf_basic_style \
 			--bind "change:first" \
