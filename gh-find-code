@@ -31,23 +31,18 @@ builtin unset value
 # commands executed in a subshell environment.
 error_handler() {
 	local lineno=$1 msg=$2 exit_code="${3:-1}"
-	# Ignore SIGINT (Ctrl+C), which results from forcefully terminating 'fzf'.
-	if [[ $(kill -l "$exit_code" 2>/dev/null) =~ INT$ ]]; then
-		:
-	else
-		{
-			echo
-			echo "ERROR TRACE: ${BASH_SOURCE[0]##*/}:$lineno command '$msg' exited with status $exit_code"
-			command "$bat_executable" \
-				--color always \
-				--highlight-line "$lineno" \
-				--language bash \
-				--line-range $((lineno - 3)):+7 \
-				--style numbers \
-				--terminal-width $((${COLUMNS:-$(tput cols)} - 4)) "${BASH_SOURCE[0]}" |
-				command sed 's/^/  /;4s/  />>/'
-		} >&2
-	fi
+	{
+		echo
+		echo "ERROR TRACE: ${BASH_SOURCE[0]##*/}:$lineno command '$msg' exited with status $exit_code"
+		command "$bat_executable" \
+			--color always \
+			--highlight-line "$lineno" \
+			--language bash \
+			--line-range $((lineno - 3)):+7 \
+			--style numbers \
+			--terminal-width $((${COLUMNS:-$(tput cols)} - 4)) "${BASH_SOURCE[0]}" |
+			command sed 's/^/  /;4s/  />>/'
+	} >&2
 	exit "$exit_code"
 }
 trap 'error_handler $LINENO "$BASH_COMMAND" $?' ERR
@@ -75,12 +70,16 @@ open_in_editor=false
 # Note: Using prompts of the same character length helps maintain user focus by avoiding shifts in
 # the prompt's position. End the string with a color code, such as '%b', to preserve trailing
 # whitespace during 'transform' actions.
-default_fzf_prompt="$(printf "%b❮❯ Code: %b" "$CYAN_NORMAL" "$COLOR_RESET")"
-fzf_prompt_failure="$(printf "%b!! Fail: %b" "$RED_NORMAL" "$COLOR_RESET")"
-fzf_prompt_fuzzyAB="$(printf "%b➤ Fuzzy:%b %b" "$CYAN_INVERT" "$CYAN_NORMAL" "$COLOR_RESET")"
-fzf_prompt_helpABC="$(printf "%b?? Help: %b" "$CYAN_NORMAL" "$COLOR_RESET")"
+default_fzf_prompt=$(printf "%b❮❯ Code: %b" "$CYAN_NORMAL" "$COLOR_RESET")
+fzf_prompt_failure=$(printf "%b!! Fail: %b" "$RED_NORMAL" "$COLOR_RESET")
+fzf_prompt_fuzzyAB=$(printf "%b➤ Fuzzy:%b %b" "$CYAN_INVERT" "$CYAN_NORMAL" "$COLOR_RESET")
+fzf_prompt_helpABC=$(printf "%b?? Help: %b" "$CYAN_NORMAL" "$COLOR_RESET")
 
-FZF_API_KEY="$(command head -c 32 /dev/urandom | command base64)"
+# Collect all 'bat' language extensions once to avoid repetitive calls within the loop.
+bat_langs=$(command "$bat_executable" --list-languages --color=never |
+	command awk -F ":" '{print $2}' | command tr ',' '\n')
+
+FZF_API_KEY=$(command head -c 32 /dev/urandom | command base64)
 MAX_LINES_HISTORY=${MAX_LINES_HISTORY:-500}
 # Bash is required to use exported functions when the default shell is not bash.
 SHELL=$(which bash)
@@ -288,7 +287,7 @@ EOF
 	echo -e "$help_text"
 }
 
-# send a POST request to fzf
+# send a POST request to 'fzf'
 curl_custom() {
 	command curl --header "x-api-key: $FZF_API_KEY" \
 		--request POST "localhost:$FZF_PORT" \
@@ -373,7 +372,7 @@ reset_default_prompt() {
 gh_query() {
 	local trimmed_query data items total_count total_count_si_format skip_count
 	local index owner_repo_name file_name file_path patterns
-	local file_extension bat_langs sanitized_patterns sanitized_owner_repo_name sanitized_file_path
+	local file_extension sanitized_patterns sanitized_owner_repo_name sanitized_file_path
 	local matched_line error_encountered update_preview_window_size redirect_location index_color
 	local base_name dir_name
 	declare -a line_numbers
@@ -519,8 +518,6 @@ gh_query() {
 				fi
 				# This covers special cases where syntax highlighting requires a leading
 				# dot, such as filenames like 'zshrc', '.zshrc' or 'macos.zshrc'
-				bat_langs=$(command "$bat_executable" --list-languages --color=never |
-					command awk -F ":" '{print $2}' | command tr ',' '\n')
 				if command grep --quiet --word-regexp "^\.${file_extension}$" <<<"$bat_langs"; then
 					file_extension=".${file_extension}"
 				elif command grep --quiet --word-regexp "^\.${file_name}$" <<<"$bat_langs"; then
@@ -550,7 +547,7 @@ gh_query() {
 						break
 					fi
 				done
-				if command grep --quiet --word-regexp "$index" "$store_skip_count"; then
+				if command grep --quiet --word-regexp --regexp="$index" -- "$store_skip_count"; then
 					continue
 				fi
 
@@ -849,6 +846,9 @@ main() {
 		esac
 	done
 	shift "$((OPTIND - 1))"
+
+	# Disable the ERR trap to ignore SIGINT from terminating 'fzf' with Ctrl+C.
+	trap - ERR
 
 	# NOTE: The 'change-preview-window' action in 'transform' should precede 'change-preview'.
 	# NOTE: In the transform action, placeholders and functions using placeholders as arguments must be
