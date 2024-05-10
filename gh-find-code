@@ -14,6 +14,8 @@ GH_FIND_DEBUG_MODE=${GH_FIND_DEBUG_MODE:-0}
 if ((GH_FIND_DEBUG_MODE)); then
 	debug_directory=$(command mktemp -d)
 	store_all_debug="${debug_directory}/all_debug"
+	store_gh_api_debug="${debug_directory}/gh_api_debug"
+	store_gh_search_debug="${debug_directory}/gh_search_debug"
 	store_grep_extended_debug="${debug_directory}/grep_extended_debug"
 
 	# Redirect stdout and stderr to both the terminal and the debug file.
@@ -64,7 +66,8 @@ error_handler() {
 			--language bash \
 			--line-range $((lineno - 3)):+7 \
 			--style numbers \
-			--terminal-width $((${COLUMNS:-$(tput cols)} - 4)) "${BASH_SOURCE[0]}" |
+			--terminal-width $((${COLUMNS:-$(tput cols)} - 4)) "${BASH_SOURCE[0]}" \
+			--wrap never |
 			command sed 's/^/  /;4s/  />>/'
 	} >&2
 	exit "$exit_code"
@@ -137,8 +140,8 @@ store_query_pids="${scratch_directory}/query_pids"
 store_fuzzy_search_string="${scratch_directory}/fuzzy_search_string"
 store_search_string="${scratch_directory}/search_string"
 store_gh_find_code_history_tmp="${scratch_directory}/gh_find_code_history_tmp"
-store_gh_content_tmp="${scratch_directory}/gh_content_tmp"
-store_gh_search_tmp="${scratch_directory}/gh_search_tmp"
+store_gh_api_error="${scratch_directory}/gh_api_error"
+store_gh_search_error="${scratch_directory}/gh_search_error"
 store_hold_gh_query_loop="${scratch_directory}/hold_gh_query_loop"
 store_last_query_signature="${scratch_directory}/last_search_setup"
 store_current_header="${scratch_directory}/current_header"
@@ -403,12 +406,13 @@ gh_query() {
 	fi
 
 	# delete leading and trailing whitespace from the query
-	IFS=$' \t' read -r trimmed_query <<<"$FZF_QUERY"
+	trimmed_query=$(command awk '{$1=$1;print}' <<<"$FZF_QUERY")
+
 	# If the query is the same as before, don't bother running it again, provided that the results
 	# of the last query are still there and there was no error. Useful when switching between fuzzy
 	# mode and search mode.
 	current_query_signature=$(echo -n "${trimmed_query}${gh_user_limit}")
-	if [[ -s $store_input_list && -s $store_current_header && ! -s $store_gh_search_tmp &&
+	if [[ -s $store_input_list && -s $store_current_header && ! -s $store_gh_search_error &&
 		$current_query_signature == "$(<"$store_last_query_signature")" ]]; then
 		curl_custom "reload(command cat $store_input_list)+change-header:$(<"$store_current_header")"
 		return
@@ -418,7 +422,7 @@ gh_query() {
 	# Ensure all background jobs are terminated before starting new ones
 	kill_processes "$store_query_pids"
 	# empty the files
-	: >"$store_gh_search_tmp"
+	: >"$store_gh_search_error"
 	: >"$store_current_header"
 	: >"$store_input_list"
 
@@ -443,18 +447,21 @@ gh_query() {
 			patterns: ([.value.text_matches[] | .. | .text? | select(type=="string")] as $patterns_array |
 				if $patterns_array == [] then "__NoPatternFound__" else $patterns_array | unique | join("|") end)
 		} | [.index, .owner_repo_name, .file_name, .file_path, .patterns] | @tsv)' \
-		2>"$store_gh_search_tmp") || [[ -z $data ]]; then
-		if grep --quiet --ignore-case "API rate limit exceeded" "$store_gh_search_tmp"; then
-			show_api_limits >>"$store_gh_search_tmp"
+		2>"$store_gh_search_error") || [[ -z $data ]]; then
+		if grep --quiet --ignore-case "API rate limit exceeded" "$store_gh_search_error"; then
+			show_api_limits >>"$store_gh_search_error"
 		fi
-		if [[ ! -s $store_gh_search_tmp ]]; then
-			echo "Unknown reason: The query failed, but no error text was written." >>"$store_gh_search_tmp"
+		if [[ ! -s $store_gh_search_error ]]; then
+			echo "Unknown reason: The query failed, but no error text was written." >>"$store_gh_search_error"
 		fi
 		# Add a line to the beginning of the error file
 		echo "------- GitHub Code Search Failure -------" |
-			command cat - "$store_gh_search_tmp" >"${store_gh_search_tmp}_tmp"
-		command mv "${store_gh_search_tmp}_tmp" "$store_gh_search_tmp"
-		curl_custom "unbind(tab,resize)+change-prompt($fzf_prompt_failure)+change-preview-window(99%:nohidden:wrap:~0:+1)+change-preview(command cat $store_gh_search_tmp)+transform-header:printf '%bCheck preview window, query syntax, internet connection, ...%b' '$RED_NORMAL' '$COLOR_RESET'"
+			command cat - "$store_gh_search_error" >"${store_gh_search_error}_tmp"
+		command mv "${store_gh_search_error}_tmp" "$store_gh_search_error"
+		curl_custom "unbind(tab,resize)+change-prompt($fzf_prompt_failure)+change-preview-window(99%:nohidden:wrap:~0:+1)+change-preview(command cat $store_gh_search_error)+transform-header:printf '%bCheck preview window, query syntax, internet connection, ...%b' '$RED_NORMAL' '$COLOR_RESET'"
+		if ((GH_FIND_DEBUG_MODE)); then
+			command cp "$store_gh_search_error" "$store_gh_search_debug"
+		fi
 		return
 	else
 		reset_default_prompt
@@ -484,14 +491,14 @@ gh_query() {
 						--header "$gh_accept_raw" \
 						--header "$gh_rest_api_version" \
 						>"${store_file_contents}_${index}" \
-						2>"$store_gh_content_tmp"; then
+						2>"$store_gh_api_error"; then
 						:
 					elif command nice -n 20 command gh api "https://raw.githubusercontent.com/${sanitized_owner_repo_name}/HEAD/${sanitized_file_path}" \
 						--cache "$gh_default_cache_time" \
 						--header "$gh_accept_raw" \
 						--header "$gh_rest_api_version" \
 						>"${store_file_contents}_${index}" \
-						2>"$store_gh_content_tmp"; then
+						2>"$store_gh_api_error"; then
 						:
 					fi
 				) &
@@ -643,9 +650,12 @@ gh_query() {
 			skip_count="$(command sed -n '$=' "$store_skip_count")"
 
 			if $error_encountered; then
-				show_api_limits >>"$store_gh_content_tmp"
+				show_api_limits >>"$store_gh_api_error"
 				curl_custom "transform-header(printf '%bAPI failed for repos/%s/contents/%s%b' \
-					'$RED_NORMAL' '$owner_repo_name' '$file_path' '$COLOR_RESET')+change-preview:command cat '$store_gh_content_tmp'"
+					'$RED_NORMAL' '$owner_repo_name' '$file_path' '$COLOR_RESET')+change-preview:command cat '$store_gh_api_error'"
+				if ((GH_FIND_DEBUG_MODE)); then
+					command cp "$store_gh_api_error" "$store_gh_api_debug"
+				fi
 			elif ((skip_count > 0)); then
 				printf "%b%s of ∑ %s%b (Skipped: %d %s [%s])%b | ? help · esc quit%b\n" \
 					"$GREEN_NORMAL" "$items" "$total_count_si_format" "$RED_NORMAL" "$skip_count" \
