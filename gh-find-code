@@ -758,7 +758,9 @@ fzf_basic_style() {
 		--height=100% \
 		--header-lines 0 \
 		--highlight-line \
+		--no-expect \
 		--no-multi \
+		--no-print-query \
 		--info hidden \
 		--layout reverse \
 		--pointer '▶' \
@@ -791,6 +793,7 @@ view_history_commands() {
 			--bind 'ctrl-space:abort' \
 			--bind 'esc:abort' \
 			--color "header:${header_color:--1}" \
+			--delimiter '\s+' \
 			--header "${header_string:-"enter select · ^d delete an entry · esc quit"}" \
 			--info inline \
 			--preview-window 'hidden' \
