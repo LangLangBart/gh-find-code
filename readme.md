@@ -42,11 +42,10 @@ gh find-code [Flags] [Search query]
 
 ---
 
-| Flags | Description                                                   |
-| ----- | ------------------------------------------------------------- |
-| `-d`  | debug mode, primarily used for identifying and resolving bugs |
-| `-l`  | limit the number of listed results (default 30, max 100)      |
-| `-h`  | help                                                          |
+| Flags | Description                                              |
+| ----- | -------------------------------------------------------- |
+| `-l`  | limit the number of listed results (default 30, max 100) |
+| `-h`  | help                                                     |
 
 | Key Bindings fzf                | Description                          |
 | ------------------------------- | ------------------------------------ |
@@ -108,6 +107,14 @@ bat --list-themes --color=never
 # Recommended themes: 1337, Dracula, gruvbox-dark, Monokai Extended
 # To launch this extension with the 'Dracula' theme
 BAT_THEME="Dracula" gh find-code
+```
+
+### Debugging
+- To activate debug mode, set `GH_FIND_DEBUG_MODE=1`. This enables `xtrace` and logs outputs to a
+  file, with the file's location displayed after script execution.
+
+```bash
+GH_FIND_DEBUG_MODE=1 gh find-code
 ```
 
 ### Editor

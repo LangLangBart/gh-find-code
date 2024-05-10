@@ -7,8 +7,33 @@ set -o allexport -o errexit -o errtrace -o nounset -o pipefail
 # TODO: replace python with a more typical bash solution
 
 ###############################################################################
-# Error Handling
+# Debugging and Error Handling Configuration
 ###############################################################################
+
+GH_FIND_DEBUG_MODE=${GH_FIND_DEBUG_MODE:-0}
+
+if ((GH_FIND_DEBUG_MODE)); then
+	debug_directory=$(command mktemp -d)
+	store_all_debug="${debug_directory}/all_debug"
+	store_grep_extended_debug="${debug_directory}/grep_extended_debug"
+
+	# Redirect stdout and stderr to the terminal and the debug file
+	exec &> >(command tee -a "$store_all_debug")
+
+	# 'GH_DEBUG' is useful for identifying the reasons behind failed GitHub API calls.
+	export GH_DEBUG=api
+
+	# Redirect xtrace output to a file
+	exec 6>>"$store_all_debug"
+	# Write the trace output to file descriptor 6
+	BASH_XTRACEFD=6
+
+	# More verbose execution trace prompt
+	PS4='+$(date +%Y-%m-%d:%H:%M:%S) ${FUNCNAME[0]:-}:L${LINENO:-}:  '
+	set -o xtrace
+	# Enable xtrace also in all child processes started by 'fzf'
+	execution_shell="$(which bash) -o xtrace -c"
+fi
 
 die() {
 	echo ERROR: "$*" >&2
@@ -65,7 +90,6 @@ WHITE_NORMAL='\033[0;97m'
 WHITE_BOLD='\033[1;97m'
 DARK_GRAY='\033[0;90m'
 
-debug_mode=false
 open_in_editor=false
 # Note: Using prompts of the same character length helps maintain user focus by avoiding shifts in
 # the prompt's position. End the string with a color code, such as '%b', to preserve trailing
@@ -81,8 +105,7 @@ bat_langs=$(command "$bat_executable" --list-languages --color=never |
 
 FZF_API_KEY=$(command head -c 32 /dev/urandom | command base64)
 MAX_LINES_HISTORY=${MAX_LINES_HISTORY:-500}
-# Bash is required to use exported functions when the default shell is not bash.
-SHELL=$(which bash)
+
 gh_find_code_history="${BASH_SOURCE%/*}/gh_find_code_history.txt"
 # A cached version will be used before a new one is pulled.
 gh_default_cache_time="1h"
@@ -115,16 +138,11 @@ store_query_pids="${scratch_directory}/query_pids"
 store_fuzzy_search_string="${scratch_directory}/fuzzy_search_string"
 store_search_string="${scratch_directory}/search_string"
 store_gh_find_code_history_tmp="${scratch_directory}/gh_find_code_history_tmp"
+store_gh_content_tmp="${scratch_directory}/gh_content_tmp"
+store_gh_search_tmp="${scratch_directory}/gh_search_tmp"
 store_hold_gh_query_loop="${scratch_directory}/hold_gh_query_loop"
 store_last_query_signature="${scratch_directory}/last_search_setup"
 store_current_header="${scratch_directory}/current_header"
-
-# Debug directory
-debug_directory=$(command mktemp -d)
-store_bat_debug="${debug_directory}/bat_debug"
-store_grep_extended_debug="${debug_directory}/grep_extended_debug"
-store_gh_search_debug="${debug_directory}/gh_search_debug"
-store_gh_content_debug="${debug_directory}/gh_content_debug"
 
 ###############################################################################
 # Cleanup Functions
@@ -157,9 +175,7 @@ cleanup() {
 	kill_processes "$store_query_pids"
 
 	command rm -rf "$scratch_directory" 2>/dev/null
-	if ! $debug_mode; then
-		command rm -rf "$debug_directory" 2>/dev/null
-	else
+	if ((GH_FIND_DEBUG_MODE)); then
 		printf "%bDebug mode was active. The following files have not been deleted:%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
 		find "$debug_directory" -mindepth 1 2>/dev/null | while read -r matching_file; do
 			if [[ ! -s $matching_file ]]; then
@@ -198,6 +214,10 @@ check_version() {
 }
 
 validate_environment() {
+	if ((GH_FIND_DEBUG_MODE)); then
+		default_fzf_prompt="$(printf "%b❮ 𝙳𝚎𝚋𝚞𝚐 𝙼𝚘𝚍𝚎 ❯ Code: %b" "$YELLOW_NORMAL" "$COLOR_RESET")"
+	fi
+
 	# Rule of Thumb: If it's listed under 'Utilities' in this link, don't check for it
 	# https://pubs.opengroup.org/onlinepubs/9699919799/utilities/contents.html
 	for value in column curl fzf gh; do
@@ -257,7 +277,6 @@ ${WHITE_BOLD}Usage${COLOR_RESET}
   gh find-code [Flags] [Search query]
 
 ${WHITE_BOLD}Flags${COLOR_RESET}
-  ${GREEN_NORMAL}-d${COLOR_RESET}  debug mode, primarily used for identifying and resolving bugs
   ${GREEN_NORMAL}-l${COLOR_RESET}  limit the number of listed results (default ${gh_default_limit}, max 100)
   ${GREEN_NORMAL}-h${COLOR_RESET}  help
 
@@ -390,7 +409,7 @@ gh_query() {
 	# of the last query are still there and there was no error. Useful when switching between fuzzy
 	# mode and search mode.
 	current_query_signature=$(echo -n "${trimmed_query}${gh_user_limit}")
-	if [[ -s $store_input_list && -s $store_current_header && ! -s $store_gh_search_debug &&
+	if [[ -s $store_input_list && -s $store_current_header && ! -s $store_gh_search_tmp &&
 		$current_query_signature == "$(<"$store_last_query_signature")" ]]; then
 		curl_custom "reload(command cat $store_input_list)+change-header:$(<"$store_current_header")"
 		return
@@ -400,7 +419,7 @@ gh_query() {
 	# Ensure all background jobs are terminated before starting new ones
 	kill_processes "$store_query_pids"
 	# empty the files
-	: >"$store_gh_search_debug"
+	: >"$store_gh_search_tmp"
 	: >"$store_current_header"
 	: >"$store_input_list"
 
@@ -425,18 +444,18 @@ gh_query() {
 			patterns: ([.value.text_matches[] | .. | .text? | select(type=="string")] as $patterns_array |
 				if $patterns_array == [] then "__NoPatternFound__" else $patterns_array | unique | join("|") end)
 		} | [.index, .owner_repo_name, .file_name, .file_path, .patterns] | @tsv)' \
-		2>"$store_gh_search_debug") || [[ -z $data ]]; then
-		if grep --quiet --ignore-case "API rate limit exceeded" "$store_gh_search_debug"; then
-			show_api_limits >>"$store_gh_search_debug"
+		2>"$store_gh_search_tmp") || [[ -z $data ]]; then
+		if grep --quiet --ignore-case "API rate limit exceeded" "$store_gh_search_tmp"; then
+			show_api_limits >>"$store_gh_search_tmp"
 		fi
-		if [[ ! -s $store_gh_search_debug ]]; then
-			echo "Unknown reason: The query failed, but no error text was written." >>"$store_gh_search_debug"
+		if [[ ! -s $store_gh_search_tmp ]]; then
+			echo "Unknown reason: The query failed, but no error text was written." >>"$store_gh_search_tmp"
 		fi
 		# Add a line to the beginning of the error file
 		echo "------- GitHub Code Search Failure -------" |
-			command cat - "$store_gh_search_debug" >"${store_gh_search_debug}_tmp"
-		command mv "${store_gh_search_debug}_tmp" "$store_gh_search_debug"
-		curl_custom "unbind(tab,resize)+change-prompt($fzf_prompt_failure)+change-preview-window(99%:nohidden:wrap:~0:+1)+change-preview(command cat $store_gh_search_debug)+transform-header:printf '%bCheck preview window, query syntax, internet connection, ...%b' '$RED_NORMAL' '$COLOR_RESET'"
+			command cat - "$store_gh_search_tmp" >"${store_gh_search_tmp}_tmp"
+		command mv "${store_gh_search_tmp}_tmp" "$store_gh_search_tmp"
+		curl_custom "unbind(tab,resize)+change-prompt($fzf_prompt_failure)+change-preview-window(99%:nohidden:wrap:~0:+1)+change-preview(command cat $store_gh_search_tmp)+transform-header:printf '%bCheck preview window, query syntax, internet connection, ...%b' '$RED_NORMAL' '$COLOR_RESET'"
 		return
 	else
 		reset_default_prompt
@@ -466,14 +485,14 @@ gh_query() {
 						--header "$gh_accept_raw" \
 						--header "$gh_rest_api_version" \
 						>"${store_file_contents}_${index}" \
-						2>"$store_gh_content_debug"; then
+						2>"$store_gh_content_tmp"; then
 						:
 					elif command nice -n 20 command gh api "https://raw.githubusercontent.com/${sanitized_owner_repo_name}/HEAD/${sanitized_file_path}" \
 						--cache "$gh_default_cache_time" \
 						--header "$gh_accept_raw" \
 						--header "$gh_rest_api_version" \
 						>"${store_file_contents}_${index}" \
-						2>"$store_gh_content_debug"; then
+						2>"$store_gh_content_tmp"; then
 						:
 					fi
 				) &
@@ -539,7 +558,7 @@ gh_query() {
 						# The file is needed now to get the line numbers in the next step.
 						# Therefore, the file will be skipped.
 						echo "$index" >>"$store_skip_count"
-						if $debug_mode; then
+						if ((GH_FIND_DEBUG_MODE)); then
 							error_encountered=true
 						fi
 						index_color="$RED_NORMAL"
@@ -559,7 +578,7 @@ gh_query() {
 				curl_custom "transform-header:printf '%b%s/%s of %s collected...%b' '$DARK_GRAY' \
 					'$index' '$total_listed_results' '$total_count_si_format' '$COLOR_RESET'"
 
-				if $debug_mode; then
+				if ((GH_FIND_DEBUG_MODE)); then
 					redirect_location="${store_grep_extended_debug}_${index}"
 				fi
 
@@ -571,11 +590,6 @@ gh_query() {
 					# Ensure only valid numbers are included
 					if [[ $matched_line =~ ^[0-9]+ ]]; then
 						line_numbers+=("$matched_line")
-					else
-						{
-							echo "The matched line is not a number."
-							echo "matched_line: '$matched_line'"
-						} >>"${store_grep_extended_debug}_${index}"
 					fi
 					# Use the '--text' flag, as grep will simply print 'Binary file … matches' if
 					# the file contains binary characters. It won't even throw an error.
@@ -587,7 +601,7 @@ gh_query() {
 					--extended-regexp --regexp="$sanitized_patterns" -- \
 					"${store_file_contents}_${index}_fetched" 2>"${redirect_location}" | cut -d: -f1)
 				# Save additional information only if an error is encountered by grep
-				if $debug_mode && [[ -s ${store_grep_extended_debug}_${index} ]]; then
+				if ((GH_FIND_DEBUG_MODE)) && [[ -s ${store_grep_extended_debug}_${index} ]]; then
 					{
 						for value in "index" "owner_repo_name" "file_path" "patterns" "sanitized_patterns"; do
 							echo "$value = '${!value}'"
@@ -630,9 +644,9 @@ gh_query() {
 			skip_count="$(command sed -n '$=' "$store_skip_count")"
 
 			if $error_encountered; then
-				show_api_limits >>"$store_gh_content_debug"
+				show_api_limits >>"$store_gh_content_tmp"
 				curl_custom "transform-header(printf '%bAPI failed for repos/%s/contents/%s%b' \
-					'$RED_NORMAL' '$owner_repo_name' '$file_path' '$COLOR_RESET')+change-preview:command cat '$store_gh_content_debug'"
+					'$RED_NORMAL' '$owner_repo_name' '$file_path' '$COLOR_RESET')+change-preview:command cat '$store_gh_content_tmp'"
 			elif ((skip_count > 0)); then
 				printf "%b%s of ∑ %s%b (Skipped: %d %s [%s])%b | ? help · esc quit%b\n" \
 					"$GREEN_NORMAL" "$items" "$total_count_si_format" "$RED_NORMAL" "$skip_count" \
@@ -703,19 +717,6 @@ view_contents() {
 		return 0
 	fi
 
-	if $debug_mode; then
-		{
-			echo -n "bat version: "
-			command "$bat_executable" --version
-			echo -n "config file: "
-			command "$bat_executable" --config-file
-			command cat "$(command "$bat_executable" --config-file)"
-			for value in BAT_PAGER BAT_CONFIG_PATH BAT_STYLE BAT_THEME BAT_TABS PAGER; do
-				echo "$value = '${!value}'"
-			done
-		} >"$store_bat_debug" 2>&1
-	fi
-
 	bat_args+=("--paging=always")
 	# The 'less' pager can move to a specific line.
 	if [[ $(command basename "${PAGER-}") =~ ^(bat|less)$ ]]; then
@@ -766,6 +767,7 @@ fzf_basic_style() {
 		--separator '' \
 		--sync \
 		--unicode \
+		--with-shell "${execution_shell:-"$(which bash) -c"}" \
 		"$@"
 }
 
@@ -822,13 +824,8 @@ main() {
 	validate_environment
 
 	# CLI Options
-	while getopts ":dhl:" value; do
+	while getopts ":hl:" value; do
 		case $value in
-			d)
-				default_fzf_prompt="$(printf "%b❮ 𝙳𝚎𝚋𝚞𝚐 𝙼𝚘𝚍𝚎 ❯ Code: %b" "$YELLOW_NORMAL" "$COLOR_RESET")"
-				export GH_DEBUG="api"
-				debug_mode="true"
-				;;
 			l)
 				if ! [[ $OPTARG =~ ^[0-9]+$ ]]; then
 					die "Value is not a valid number: '$OPTARG'"
