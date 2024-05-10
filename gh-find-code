@@ -32,7 +32,7 @@ builtin unset value
 error_handler() {
 	local lineno=$1 msg=$2 exit_code="${3:-1}"
 	# Ignore SIGINT (Ctrl+C), which results from forcefully terminating 'fzf'.
-	if [[ $(kill -l "$3" 2>/dev/null) =~ INT$ ]]; then
+	if [[ $(kill -l "$exit_code" 2>/dev/null) =~ INT$ ]]; then
 		:
 	else
 		{
