@@ -266,6 +266,7 @@ validate_environment() {
 		if [[ -d $GHFC_HISTORY_FILE ]]; then
 			die "$GHFC_HISTORY_FILE is a directory"
 		fi
+
 		if [[ ! -f $GHFC_HISTORY_FILE ]]; then
 			command mkdir -p "$(command dirname "${GHFC_HISTORY_FILE}")"
 			if command touch "$GHFC_HISTORY_FILE"; then
@@ -276,14 +277,14 @@ validate_environment() {
 		fi
 		[[ -r $GHFC_HISTORY_FILE ]] || die "Permission denied: unable to read from: $GHFC_HISTORY_FILE"
 		[[ -w $GHFC_HISTORY_FILE ]] || die "Permission denied: unable to write to: $GHFC_HISTORY_FILE"
-	fi
 
-	# If the history file is empty and GHFC_HISTORY_LIMIT is greater than zero, add some examples.
-	if [[ ! -s $GHFC_HISTORY_FILE ]] && ((GHFC_HISTORY_LIMIT)); then
-		command cat <<'EOF' >"$GHFC_HISTORY_FILE"
+		# Add some examples if the history file is empty.
+		if [[ ! -s $GHFC_HISTORY_FILE ]]; then
+			command cat <<'EOF' >"$GHFC_HISTORY_FILE"
 repo:junegunn/fzf FZF_PORT
 extension:rs "Hello, world!"
 EOF
+		fi
 	fi
 }
 
@@ -381,10 +382,11 @@ add_history() {
 remove_history() {
 	if ((GHFC_HISTORY_LIMIT)); then
 		# Attach '--regexp' directly to its argument to handle leading dashes.
-		command grep --fixed-strings --line-regexp --invert-match --regexp="$*" \
-			"$GHFC_HISTORY_FILE" >"$store_history_tmp"
+		if command grep --fixed-strings --line-regexp --invert-match --regexp="$*" \
+			"$GHFC_HISTORY_FILE" >"$store_history_tmp"; then
 
-		command mv "$store_history_tmp" "$GHFC_HISTORY_FILE"
+			command mv "$store_history_tmp" "$GHFC_HISTORY_FILE"
+		fi
 	fi
 }
 
@@ -497,6 +499,8 @@ gh_query() {
 			# first line
 			IFS=' ' read -r items total_count
 
+			# Running commands in the background of a script can cause it to hang, especially if the
+			# command outputs to stdout: https://tldp.org/LDP/abs/html/x9644.html#WAITHANG
 			while IFS=$'\t' read -r index owner_repo_name file_name file_path patterns; do
 				# https://github.com/junegunn/fzf/issues/398
 				# Tested with 'sudo opensnoop -n bash', without a break check it keeps going through
