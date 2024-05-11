@@ -267,7 +267,12 @@ validate_environment() {
 			die "$GHFC_HISTORY_FILE is a directory"
 		fi
 		if [[ ! -f $GHFC_HISTORY_FILE ]]; then
-			touch "$GHFC_HISTORY_FILE" || die "Unable to create: $GHFC_HISTORY_FILE"
+			command mkdir -p "$(command dirname "${GHFC_HISTORY_FILE}")"
+			if command touch "$GHFC_HISTORY_FILE"; then
+				echo "History file successfully created at: $GHFC_HISTORY_FILE"
+			else
+				die "Unable to create: $GHFC_HISTORY_FILE"
+			fi
 		fi
 		[[ -r $GHFC_HISTORY_FILE ]] || die "Permission denied: unable to read from: $GHFC_HISTORY_FILE"
 		[[ -w $GHFC_HISTORY_FILE ]] || die "Permission denied: unable to write to: $GHFC_HISTORY_FILE"
