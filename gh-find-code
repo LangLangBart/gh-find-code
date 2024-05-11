@@ -101,14 +101,10 @@ fzf_prompt_failure=$(printf "%b!! Fail: %b" "$RED_NORMAL" "$COLOR_RESET")
 fzf_prompt_fuzzyAB=$(printf "%b➤ Fuzzy:%b %b" "$CYAN_INVERT" "$CYAN_NORMAL" "$COLOR_RESET")
 fzf_prompt_helpABC=$(printf "%b?? Help: %b" "$CYAN_NORMAL" "$COLOR_RESET")
 
-# Collect all 'bat' language extensions once to avoid repetitive calls within the loop.
-bat_langs=$(command "$bat_executable" --list-languages --color=never |
-	command awk -F ":" '{print $2}' | command tr ',' '\n')
-
 FZF_API_KEY=$(command head -c 32 /dev/urandom | command base64)
 GHFC_HISTORY_LIMIT=${GHFC_HISTORY_LIMIT:-500}
-
 gh_find_code_history="${BASH_SOURCE%/*}/gh_find_code_history.txt"
+
 # A cached version will be used before a new one is pulled.
 gh_default_cache_time="1h"
 gh_default_limit=30
@@ -117,6 +113,7 @@ gh_accept_json="Accept: application/vnd.github+json"
 gh_accept_raw="Accept: application/vnd.github.raw"
 gh_accept_text_match="Accept: application/vnd.github.text-match+json"
 gh_rest_api_version="X-GitHub-Api-Version:2022-11-28"
+
 # https://github.com/junegunn/fzf/releases/tag/0.52.0
 min_fzf_version="0.52.0"
 # a bug with 'gh-browse' with relative paths was fixed
@@ -132,6 +129,7 @@ python_executable=""
 
 # Default directory for trivial files
 scratch_directory=$(command mktemp -d)
+store_bat_langs="${scratch_directory}/bat_langs"
 store_input_list="${scratch_directory}/input_list"
 store_tee_append="${scratch_directory}/tee_append"
 store_file_contents="${scratch_directory}/file_contents"
@@ -219,6 +217,10 @@ validate_environment() {
 	if ((GHFC_DEBUG_MODE)); then
 		default_fzf_prompt="$(printf "%b❮ 𝙳𝚎𝚋𝚞𝚐 𝙼𝚘𝚍𝚎 ❯ Code: %b" "$YELLOW_NORMAL" "$COLOR_RESET")"
 	fi
+
+	# Collect all 'bat' language extensions once to avoid repetitive calls within the loop.
+	command "$bat_executable" --list-languages --color=never |
+		command awk -F ":" '{print $2}' | command tr ',' '\n' >"$store_bat_langs"
 
 	# Rule of Thumb: If it's listed under 'Utilities' in this link, don't check for it
 	# https://pubs.opengroup.org/onlinepubs/9699919799/utilities/contents.html
@@ -545,9 +547,9 @@ gh_query() {
 				fi
 				# This covers special cases where syntax highlighting requires a leading
 				# dot, such as filenames like 'zshrc', '.zshrc' or 'macos.zshrc'
-				if command grep --quiet --word-regexp --regexp="^\.${file_extension}$" <<<"$bat_langs"; then
+				if command grep --quiet --max-count=1 --regexp="^\.${file_extension}$" -- "$store_bat_langs"; then
 					file_extension=".${file_extension}"
-				elif command grep --quiet --word-regexp --regexp="^\.${file_name}$" <<<"$bat_langs"; then
+				elif command grep --quiet --max-count=1 --regexp="^\.${file_name}$" -- "$store_bat_langs"; then
 					file_extension=".${file_name}"
 				fi
 
