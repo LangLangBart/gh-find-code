@@ -110,11 +110,11 @@ BAT_THEME="Dracula" gh find-code
 ```
 
 ### Debugging
-- To activate debug mode, set `GH_FIND_DEBUG_MODE=1`. This enables `xtrace` and logs outputs to a
-  file, with the file's location displayed after script execution.
+- To activate debug mode, set `GH_FIND_CODE_DEBUG_MODE=1`. This enables `xtrace` and logs outputs to
+  a file, with the file's location displayed after script execution.
 
 ```bash
-GH_FIND_DEBUG_MODE=1 gh find-code
+GH_FIND_CODE_DEBUG_MODE=1 gh find-code
 ```
 
 ### Editor

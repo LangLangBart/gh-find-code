@@ -10,8 +10,8 @@ set -o allexport -o errexit -o errtrace -o nounset -o pipefail
 # Debugging and Error Handling Configuration
 ###############################################################################
 
-GH_FIND_DEBUG_MODE=${GH_FIND_DEBUG_MODE:-0}
-if ((GH_FIND_DEBUG_MODE)); then
+GH_FIND_CODE_DEBUG_MODE=${GH_FIND_CODE_DEBUG_MODE:-0}
+if ((GH_FIND_CODE_DEBUG_MODE)); then
 	debug_directory=$(command mktemp -d)
 	store_all_debug="${debug_directory}/all_debug"
 	store_gh_api_debug="${debug_directory}/gh_api_debug"
@@ -176,7 +176,7 @@ kill_processes() {
 cleanup() {
 	kill_processes "$store_query_pids"
 	command rm -rf "$scratch_directory" 2>/dev/null
-	if ((GH_FIND_DEBUG_MODE)); then
+	if ((GH_FIND_CODE_DEBUG_MODE)); then
 		printf "%bDebug mode was active. The following files have not been deleted:%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
 		find "$debug_directory" -mindepth 1 2>/dev/null | while read -r matching_file; do
 			if [[ ! -s $matching_file ]]; then
@@ -216,7 +216,7 @@ check_version() {
 
 validate_environment() {
 	local value
-	if ((GH_FIND_DEBUG_MODE)); then
+	if ((GH_FIND_CODE_DEBUG_MODE)); then
 		default_fzf_prompt="$(printf "%b❮ 𝙳𝚎𝚋𝚞𝚐 𝙼𝚘𝚍𝚎 ❯ Code: %b" "$YELLOW_NORMAL" "$COLOR_RESET")"
 	fi
 
@@ -343,15 +343,17 @@ open_query_in_browser() {
 # Adding the current value for 'FZF_QUERY', exported by 'fzf', to the history file.
 add_history() {
 	echo "$FZF_QUERY" >>"$gh_find_code_history"
-	# In the case of duplicates, only the most recent entry is kept. One could use 'tac' instead
-	# of 'tail -r', but it requires 'coreutils'. Be careful not to read and write the same file
-	# in the same pipeline - https://shellcheck.net/wiki/SC2094. This could lead to a race
-	# condition, resulting in the file being erased.
-	command tail -r "$gh_find_code_history" | command awk '{$1=$1}; NF && !x[$0]++' |
-		command grep --invert-match --regexp='^$' | command tail -r |
-		command tail -n "$MAX_LINES_HISTORY" >"$store_gh_find_code_history_tmp"
+	# To avoid duplicates, only the most recent entry is retained. Since 'tail -r' does not work
+	# with the 'coreutils' version and 'tac' requires 'coreutils', 'sed' is used to reverse the
+	# order of lines. Be cautious not to read from and write to the same file in the same pipeline
+	# to prevent a race condition that could erase the file. See: https://shellcheck.net/wiki/SC2094
+	# for more information.
+	if command sed '1!G;h;$!d' "$gh_find_code_history" | command awk '{$1=$1}; NF && !x[$0]++' |
+		command grep --invert-match --regexp='^$' | command sed '1!G;h;$!d' |
+		command tail -n "$MAX_LINES_HISTORY" >"$store_gh_find_code_history_tmp"; then
 
-	command mv "$store_gh_find_code_history_tmp" "$gh_find_code_history"
+		command mv "$store_gh_find_code_history_tmp" "$gh_find_code_history"
+	fi
 }
 
 # Removing a specified line from the history file.
@@ -459,7 +461,7 @@ gh_query() {
 			command cat - "$store_gh_search_error" >"${store_gh_search_error}_tmp"
 		command mv "${store_gh_search_error}_tmp" "$store_gh_search_error"
 		curl_custom "unbind(tab,resize)+change-prompt($fzf_prompt_failure)+change-preview-window(99%:nohidden:wrap:~0:+1)+change-preview(command cat $store_gh_search_error)+transform-header:printf '%bCheck preview window, query syntax, internet connection, ...%b' '$RED_NORMAL' '$COLOR_RESET'"
-		if ((GH_FIND_DEBUG_MODE)); then
+		if ((GH_FIND_CODE_DEBUG_MODE)); then
 			command cp "$store_gh_search_error" "$store_gh_search_debug"
 		fi
 		return
@@ -564,7 +566,7 @@ gh_query() {
 						# The file is needed now to get the line numbers in the next step.
 						# Therefore, the file will be skipped.
 						echo "$index" >>"$store_skip_count"
-						if ((GH_FIND_DEBUG_MODE)); then
+						if ((GH_FIND_CODE_DEBUG_MODE)); then
 							error_encountered=true
 						fi
 						index_color="$RED_NORMAL"
@@ -584,7 +586,7 @@ gh_query() {
 				curl_custom "transform-header:printf '%b%s/%s of %s collected...%b' '$DARK_GRAY' \
 					'$index' '$total_listed_results' '$total_count_si_format' '$COLOR_RESET'"
 
-				if ((GH_FIND_DEBUG_MODE)); then
+				if ((GH_FIND_CODE_DEBUG_MODE)); then
 					redirect_location="${store_grep_extended_debug}_${index}"
 				fi
 
@@ -607,7 +609,7 @@ gh_query() {
 					--extended-regexp --regexp="$sanitized_patterns" -- \
 					"${store_file_contents}_${index}_fetched" 2>"${redirect_location}" | cut -d: -f1)
 				# Save additional information only if an error is encountered by grep
-				if ((GH_FIND_DEBUG_MODE)) && [[ -s ${store_grep_extended_debug}_${index} ]]; then
+				if ((GH_FIND_CODE_DEBUG_MODE)) && [[ -s ${store_grep_extended_debug}_${index} ]]; then
 					{
 						for value in "index" "owner_repo_name" "file_path" "patterns" "sanitized_patterns"; do
 							echo "$value = '${!value}'"
@@ -653,7 +655,7 @@ gh_query() {
 				show_api_limits >>"$store_gh_api_error"
 				curl_custom "transform-header(printf '%bAPI failed for repos/%s/contents/%s%b' \
 					'$RED_NORMAL' '$owner_repo_name' '$file_path' '$COLOR_RESET')+change-preview:command cat '$store_gh_api_error'"
-				if ((GH_FIND_DEBUG_MODE)); then
+				if ((GH_FIND_CODE_DEBUG_MODE)); then
 					command cp "$store_gh_api_error" "$store_gh_api_debug"
 				fi
 			elif ((skip_count > 0)); then
@@ -788,7 +790,7 @@ view_history_commands() {
 	fi
 	echo "hold" >"$store_hold_gh_query_loop"
 	# The additional pipe for 'bat' is used to improve text visibility.
-	history_command=$'command tail -r "$gh_find_code_history" | command nl -s "\t" -n ln -w 3 | command '$bat_executable' --plain --color=always'
+	history_command=$'command sed \'1!G;h;$!d\' "$gh_find_code_history" | command nl -s "\t" -n ln -w 3 | command '$bat_executable' --plain --color=always'
 	# The Ctrl+C keybind instantly closes 'fzf' by terminating both instances.
 	selection=$(
 		fzf_basic_style \
