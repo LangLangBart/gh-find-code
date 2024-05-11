@@ -92,6 +92,10 @@ WHITE_NORMAL='\033[0;97m'
 WHITE_BOLD='\033[1;97m'
 DARK_GRAY='\033[0;90m'
 
+FZF_API_KEY=$(command head -c 32 /dev/urandom | command base64)
+GHFC_HISTORY_LIMIT=${GHFC_HISTORY_LIMIT:-500}
+GHFC_HISTORY_FILE=${GHFC_HISTORY_FILE:-${BASH_SOURCE%/*}/gh_find_code_history.txt}
+
 open_in_editor=false
 # Note: Using prompts of the same character length helps maintain user focus by avoiding shifts in
 # the prompt's position. End the string with a color code, such as '%b', to preserve trailing
@@ -100,10 +104,6 @@ default_fzf_prompt=$(printf "%b❮❯ Code: %b" "$CYAN_NORMAL" "$COLOR_RESET")
 fzf_prompt_failure=$(printf "%b!! Fail: %b" "$RED_NORMAL" "$COLOR_RESET")
 fzf_prompt_fuzzyAB=$(printf "%b➤ Fuzzy:%b %b" "$CYAN_INVERT" "$CYAN_NORMAL" "$COLOR_RESET")
 fzf_prompt_helpABC=$(printf "%b?? Help: %b" "$CYAN_NORMAL" "$COLOR_RESET")
-
-FZF_API_KEY=$(command head -c 32 /dev/urandom | command base64)
-GHFC_HISTORY_LIMIT=${GHFC_HISTORY_LIMIT:-500}
-GHFC_HISTORY_FILE=${GHFC_HISTORY_FILE:-${BASH_SOURCE%/*}/gh_find_code_history.txt}
 
 # A cached version will be used before a new one is pulled.
 gh_default_cache_time="1h"
@@ -271,7 +271,6 @@ validate_environment() {
 		fi
 		[[ -r $GHFC_HISTORY_FILE ]] || die "Permission denied: unable to read from: $GHFC_HISTORY_FILE"
 		[[ -w $GHFC_HISTORY_FILE ]] || die "Permission denied: unable to write to: $GHFC_HISTORY_FILE"
-
 	fi
 
 	# If the history file is empty and GHFC_HISTORY_LIMIT is greater than zero, add some examples.
@@ -357,27 +356,31 @@ open_query_in_browser() {
 
 # Adding the current value for 'FZF_QUERY', exported by 'fzf', to the history file.
 add_history() {
-	echo "$FZF_QUERY" >>"$GHFC_HISTORY_FILE"
-	# To avoid duplicates, only the most recent entry is retained. Since 'tail -r' does not work
-	# with the 'coreutils' version and 'tac' requires 'coreutils', 'sed' is used to reverse the
-	# order of lines. Be cautious not to read from and write to the same file in the same pipeline
-	# to prevent a race condition that could erase the file. See: https://shellcheck.net/wiki/SC2094
-	# for more information.
-	if command sed '1!G;h;$!d' "$GHFC_HISTORY_FILE" | command awk '{$1=$1}; NF && !x[$0]++' |
-		command grep --invert-match --regexp='^$' | command sed '1!G;h;$!d' |
-		command tail -n "$GHFC_HISTORY_LIMIT" >"$store_history_tmp"; then
+	if ((GHFC_HISTORY_LIMIT)); then
+		echo "$FZF_QUERY" >>"$GHFC_HISTORY_FILE"
+		# To avoid duplicates, only the most recent entry is retained. Since 'tail -r' does not work
+		# with the 'coreutils' version and 'tac' requires 'coreutils', 'sed' is used to reverse the
+		# order of lines. Be cautious not to read from and write to the same file in the same pipeline
+		# to prevent a race condition that could erase the file. See: https://shellcheck.net/wiki/SC2094
+		# for more information.
+		if command sed '1!G;h;$!d' "$GHFC_HISTORY_FILE" | command awk '{$1=$1}; NF && !x[$0]++' |
+			command grep --invert-match --regexp='^$' | command sed '1!G;h;$!d' |
+			command tail -n "$GHFC_HISTORY_LIMIT" >"$store_history_tmp"; then
 
-		command mv "$store_history_tmp" "$GHFC_HISTORY_FILE"
+			command mv "$store_history_tmp" "$GHFC_HISTORY_FILE"
+		fi
 	fi
 }
 
 # Removing a specified line from the history file.
 remove_history() {
-	# Attach '--regexp' directly to its argument to handle leading dashes.
-	command grep --fixed-strings --line-regexp --invert-match --regexp="$*" \
-		"$GHFC_HISTORY_FILE" >"$store_history_tmp"
+	if ((GHFC_HISTORY_LIMIT)); then
+		# Attach '--regexp' directly to its argument to handle leading dashes.
+		command grep --fixed-strings --line-regexp --invert-match --regexp="$*" \
+			"$GHFC_HISTORY_FILE" >"$store_history_tmp"
 
-	command mv "$store_history_tmp" "$GHFC_HISTORY_FILE"
+		command mv "$store_history_tmp" "$GHFC_HISTORY_FILE"
+	fi
 }
 
 show_api_limits() {
