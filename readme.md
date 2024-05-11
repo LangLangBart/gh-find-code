@@ -37,8 +37,8 @@ gh find-code [Flags] [Search query]
 
 
 > [!IMPORTANT]
-> The search syntax differs between the WebUI and the REST API, with the latter not
-> supporting regex.
+> The search syntax differs between the WebUI and the REST API, with the latter
+> not supporting regex.
 
 ---
 
@@ -68,10 +68,10 @@ gh find-code [Flags] [Search query]
 - [curl](https://github.com/curl/curl) - sending updates to `fzf`
 - [Fuzzy Finder (fzf)](https://github.com/junegunn/fzf#installation) - allow for
   interaction with listed data
-- [GitHub command line tool (gh)](https://github.com/cli/cli#installation) - get the data
-  from Github
-- [Python](https://www.python.org) - used to parse and open custom URLs on different
-  operating systems
+- [GitHub command line tool (gh)](https://github.com/cli/cli#installation) - get
+  the data from Github
+- [Python](https://www.python.org) - used to parse and open custom URLs on
+  different operating systems
 
 ```sh
 # install this extension
@@ -87,8 +87,8 @@ gh ext remove LangLangBart/gh-find-code
 ## 💁 TIPS
 
 ### Alias
-- The name `gh find-code` was chosen for its descriptive nature. For frequent use,
-  consider setting up an alias.
+- The name `gh find-code` was chosen for its descriptive nature. For frequent
+  use, consider setting up an alias.
 
 ```sh
 # ~/.bashrc or ~/.zshrc
@@ -98,8 +98,9 @@ alias ghfc='BAT_THEME="Dracula" EDITOR="vim" gh find-code'
 ```
 
 ### Bat
-- The color scheme of the preview is determined by the `BAT_THEME` environment variable.
-  If not explicitly set by the user, the theme defaults to `Monokai Extended`.
+- The color scheme of the preview is determined by the `BAT_THEME` environment
+  variable. If not explicitly set by the user, the theme defaults to `Monokai
+  Extended`.
 
 ```sh
 # To view all default themes
@@ -110,18 +111,20 @@ BAT_THEME="Dracula" gh find-code
 ```
 
 ### Debugging
-- To activate debug mode, set `GHFC_DEBUG_MODE=1`. This enables `xtrace` and logs outputs to
-  a file, with the file's location displayed after script execution.
+- To activate debug mode, set `GHFC_DEBUG_MODE=1`. This enables `xtrace` and
+  logs outputs to a file, with the file's location displayed after script
+  execution.
 
 ```bash
 GHFC_DEBUG_MODE=1 gh find-code
 ```
 
 ### Editor
-- The extension uses the `EDITOR` environment variable to determine in which editor
-  the selected file will be opened, works with `nano`, `nvim/vi/vim`,  and
-  `VSCode/VSCodium`.
-- The code from opened files is stored temporarily and is removed when the program ends.
+- The extension uses the `EDITOR` environment variable to determine in which
+  editor the selected file will be opened, works with `nano`, `nvim/vi/vim`,
+  and `VSCode/VSCodium`.
+- The code from opened files is stored temporarily and is removed when the
+  program ends.
 
 ```sh
 # Set the editor to Visual Studio Code
@@ -141,33 +144,42 @@ export FZF_DEFAULT_OPTS="
 - See `man fzf` for `AVAILABLE KEYS` or
   [junegunn/fzf](https://github.com/junegunn/fzf#environment-variables) for more
   details.
-- NOTE: [How to use ALT commands in a terminal on
-  macOS?](https://superuser.com/questions/496090/how-to-use-alt-commands-in-a-terminal-on-os-x)
+- **NOTE:** [How to use ALT commands in a terminal on macOS?](https://superuser.com/questions/496090/how-to-use-alt-commands-in-a-terminal-on-os-x)
 
 ### History
-- The `gh_find_code_history.txt` file stores successfully completed unique commands. All commands
-  can be viewed with <kbd>⌃ Control</kbd> + <kbd>Space</kbd>. In case of duplicates, only the most
-  recent entry is preserved. The maximum number of command entries is 500 by default, but this can
-  be overridden by assigning a value to the `GHFC_HISTORY_LIMIT` variable.
+- Recent commands can be viewed with <kbd>⌃ Control</kbd> + <kbd>Space</kbd>.
+- The history file stores successfully completed unique commands, one can
+  specify a custom location using the `GHFC_HISTORY_FILE` environment variable.
 
-```sh
+```bash
+# Default location: ${BASH_SOURCE%/*}/gh_find_code_history.txt
+# Specify a custom location for the history file
+GHFC_HISTORY_FILE="/custom/location/history.txt" gh find-code
+```
+
+- In case of duplicates, only the most recent entry is preserved. The default
+  maximum number of command entries is **500**, but this can be adjusted by
+  setting the `GHFC_HISTORY_LIMIT` variable.
+
+```bash
 # Set the maximum number of stored commands to 1000
 GHFC_HISTORY_LIMIT="1000" gh find-code
 ```
 
 ### Pager
-- If the `PAGER` environment variable is set to `less` or `bat`, when opening the destination file,
-  it will automatically scroll to the matching line found.
+- If the `PAGER` environment variable is set to `less` or `bat`, when opening
+  the destination file, it will automatically scroll to the matching line found.
 
 ---
 
 ## 💪 Contributing
 
 > [!NOTE]
-> _Pre-commit is a multi-language package manager for pre-commit hooks. You specify a list_
-> _of hooks you want and **pre-commit manages the installation and execution** of any hook_
-> _written in any language before every commit._ **Source:** [pre-commit
-> introduction](https://pre-commit.com/#introduction)
+> _Pre-commit is a multi-language package manager for pre-commit hooks. You_
+> _specify a list of hooks you want and pre-commit **manages** the installation_
+> _and **execution** of any hook written in any language before every commit._
+>
+> **Source:** [pre-commit introduction](https://pre-commit.com/#introduction)
 
 ```sh
 # shellcheck and shfmt are necessary dependencies for one hook
