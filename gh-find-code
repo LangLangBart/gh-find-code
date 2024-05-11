@@ -10,8 +10,8 @@ set -o allexport -o errexit -o errtrace -o nounset -o pipefail
 # Debugging and Error Handling Configuration
 ###############################################################################
 
-GH_FIND_CODE_DEBUG_MODE=${GH_FIND_CODE_DEBUG_MODE:-0}
-if ((GH_FIND_CODE_DEBUG_MODE)); then
+GHFC_DEBUG_MODE=${GHFC_DEBUG_MODE:-0}
+if ((GHFC_DEBUG_MODE)); then
 	debug_directory=$(command mktemp -d)
 	store_all_debug="${debug_directory}/all_debug"
 	store_gh_api_debug="${debug_directory}/gh_api_debug"
@@ -106,7 +106,7 @@ bat_langs=$(command "$bat_executable" --list-languages --color=never |
 	command awk -F ":" '{print $2}' | command tr ',' '\n')
 
 FZF_API_KEY=$(command head -c 32 /dev/urandom | command base64)
-MAX_LINES_HISTORY=${MAX_LINES_HISTORY:-500}
+GHFC_HISTORY_LIMIT=${GHFC_HISTORY_LIMIT:-500}
 
 gh_find_code_history="${BASH_SOURCE%/*}/gh_find_code_history.txt"
 # A cached version will be used before a new one is pulled.
@@ -176,7 +176,7 @@ kill_processes() {
 cleanup() {
 	kill_processes "$store_query_pids"
 	command rm -rf "$scratch_directory" 2>/dev/null
-	if ((GH_FIND_CODE_DEBUG_MODE)); then
+	if ((GHFC_DEBUG_MODE)); then
 		printf "%bDebug mode was active. The following files have not been deleted:%b\n" "$YELLOW_NORMAL" "$COLOR_RESET"
 		find "$debug_directory" -mindepth 1 2>/dev/null | while read -r matching_file; do
 			if [[ ! -s $matching_file ]]; then
@@ -216,7 +216,7 @@ check_version() {
 
 validate_environment() {
 	local value
-	if ((GH_FIND_CODE_DEBUG_MODE)); then
+	if ((GHFC_DEBUG_MODE)); then
 		default_fzf_prompt="$(printf "%b❮ 𝙳𝚎𝚋𝚞𝚐 𝙼𝚘𝚍𝚎 ❯ Code: %b" "$YELLOW_NORMAL" "$COLOR_RESET")"
 	fi
 
@@ -254,13 +254,13 @@ validate_environment() {
 		die "Your 'column' command does not separate columns with at least two spaces. Please report this issue, stating your operating system and 'column' version."
 	fi
 
-	# Check if MAX_LINES_HISTORY is a number
-	if ! [[ $MAX_LINES_HISTORY =~ ^[0-9]+$ ]]; then
-		die "MAX_LINES_HISTORY must be a number."
+	# Check if GHFC_HISTORY_LIMIT is a number
+	if ! [[ $GHFC_HISTORY_LIMIT =~ ^[0-9]+$ ]]; then
+		die "GHFC_HISTORY_LIMIT must be a number."
 	fi
 
-	# If the history file is empty and MAX_LINES_HISTORY is greater than zero, add some examples.
-	if [[ ! -s $gh_find_code_history ]] && ((MAX_LINES_HISTORY)); then
+	# If the history file is empty and GHFC_HISTORY_LIMIT is greater than zero, add some examples.
+	if [[ ! -s $gh_find_code_history ]] && ((GHFC_HISTORY_LIMIT)); then
 		command cat <<'EOF' >"$gh_find_code_history"
 repo:junegunn/fzf FZF_PORT
 extension:rs "Hello, world!"
@@ -350,7 +350,7 @@ add_history() {
 	# for more information.
 	if command sed '1!G;h;$!d' "$gh_find_code_history" | command awk '{$1=$1}; NF && !x[$0]++' |
 		command grep --invert-match --regexp='^$' | command sed '1!G;h;$!d' |
-		command tail -n "$MAX_LINES_HISTORY" >"$store_gh_find_code_history_tmp"; then
+		command tail -n "$GHFC_HISTORY_LIMIT" >"$store_gh_find_code_history_tmp"; then
 
 		command mv "$store_gh_find_code_history_tmp" "$gh_find_code_history"
 	fi
@@ -461,7 +461,7 @@ gh_query() {
 			command cat - "$store_gh_search_error" >"${store_gh_search_error}_tmp"
 		command mv "${store_gh_search_error}_tmp" "$store_gh_search_error"
 		curl_custom "unbind(tab,resize)+change-prompt($fzf_prompt_failure)+change-preview-window(99%:nohidden:wrap:~0:+1)+change-preview(command cat $store_gh_search_error)+transform-header:printf '%bCheck preview window, query syntax, internet connection, ...%b' '$RED_NORMAL' '$COLOR_RESET'"
-		if ((GH_FIND_CODE_DEBUG_MODE)); then
+		if ((GHFC_DEBUG_MODE)); then
 			command cp "$store_gh_search_error" "$store_gh_search_debug"
 		fi
 		return
@@ -566,7 +566,7 @@ gh_query() {
 						# The file is needed now to get the line numbers in the next step.
 						# Therefore, the file will be skipped.
 						echo "$index" >>"$store_skip_count"
-						if ((GH_FIND_CODE_DEBUG_MODE)); then
+						if ((GHFC_DEBUG_MODE)); then
 							error_encountered=true
 						fi
 						index_color="$RED_NORMAL"
@@ -586,13 +586,13 @@ gh_query() {
 				curl_custom "transform-header:printf '%b%s/%s of %s collected...%b' '$DARK_GRAY' \
 					'$index' '$total_listed_results' '$total_count_si_format' '$COLOR_RESET'"
 
-				if ((GH_FIND_CODE_DEBUG_MODE)); then
+				if ((GHFC_DEBUG_MODE)); then
 					redirect_location="${store_grep_extended_debug}_${index}"
 				fi
 
 				# Escape special charters before using the string in extended 'grep'.
 				# However, the "|" character should be left unescaped.
-				sanitized_patterns=$(command sed -e 's/[][?*+.\/$^(){}]/\\&/g' <<<"$patterns")
+				sanitized_patterns=$(command sed -e 's/[][?*+.$^()]/\\&/g' <<<"$patterns")
 				line_numbers=()
 				[[ $patterns != "__NoPatternFound__" ]] && while IFS='' read -r matched_line; do
 					# Ensure only valid numbers are included
@@ -609,7 +609,7 @@ gh_query() {
 					--extended-regexp --regexp="$sanitized_patterns" -- \
 					"${store_file_contents}_${index}_fetched" 2>"${redirect_location}" | cut -d: -f1)
 				# Save additional information only if an error is encountered by grep
-				if ((GH_FIND_CODE_DEBUG_MODE)) && [[ -s ${store_grep_extended_debug}_${index} ]]; then
+				if ((GHFC_DEBUG_MODE)) && [[ -s ${store_grep_extended_debug}_${index} ]]; then
 					{
 						for value in "index" "owner_repo_name" "file_path" "patterns" "sanitized_patterns"; do
 							echo "$value = '${!value}'"
@@ -655,7 +655,7 @@ gh_query() {
 				show_api_limits >>"$store_gh_api_error"
 				curl_custom "transform-header(printf '%bAPI failed for repos/%s/contents/%s%b' \
 					'$RED_NORMAL' '$owner_repo_name' '$file_path' '$COLOR_RESET')+change-preview:command cat '$store_gh_api_error'"
-				if ((GH_FIND_CODE_DEBUG_MODE)); then
+				if ((GHFC_DEBUG_MODE)); then
 					command cp "$store_gh_api_error" "$store_gh_api_debug"
 				fi
 			elif ((skip_count > 0)); then

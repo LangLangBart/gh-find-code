@@ -110,11 +110,11 @@ BAT_THEME="Dracula" gh find-code
 ```
 
 ### Debugging
-- To activate debug mode, set `GH_FIND_CODE_DEBUG_MODE=1`. This enables `xtrace` and logs outputs to
+- To activate debug mode, set `GHFC_DEBUG_MODE=1`. This enables `xtrace` and logs outputs to
   a file, with the file's location displayed after script execution.
 
 ```bash
-GH_FIND_CODE_DEBUG_MODE=1 gh find-code
+GHFC_DEBUG_MODE=1 gh find-code
 ```
 
 ### Editor
@@ -148,11 +148,11 @@ export FZF_DEFAULT_OPTS="
 - The `gh_find_code_history.txt` file stores successfully completed unique commands. All commands
   can be viewed with <kbd>⌃ Control</kbd> + <kbd>Space</kbd>. In case of duplicates, only the most
   recent entry is preserved. The maximum number of command entries is 500 by default, but this can
-  be overridden by assigning a value to the `MAX_LINES_HISTORY` variable.
+  be overridden by assigning a value to the `GHFC_HISTORY_LIMIT` variable.
 
 ```sh
 # Set the maximum number of stored commands to 1000
-MAX_LINES_HISTORY="1000" gh find-code
+GHFC_HISTORY_LIMIT="1000" gh find-code
 ```
 
 ### Pager
