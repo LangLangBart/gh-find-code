@@ -13,12 +13,12 @@ repos:
         pass_filenames: false
         files: gh-find-code
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v4.6.0
     hooks:
       - id: end-of-file-fixer
       - id: trailing-whitespace
   - repo: https://github.com/crate-ci/typos
-    rev: v1.19.0
+    rev: v1.21.0
     hooks:
       - id: typos
         args: [--format, brief, --write-changes]
@@ -59,7 +59,7 @@ repos:
         name: markdown link check
         args: [--quiet]
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v3.20.0
+    rev: v3.25.0
     hooks:
       - id: commitizen
         stages: [commit-msg]
