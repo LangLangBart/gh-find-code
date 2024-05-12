@@ -18,9 +18,6 @@ if ((GHFC_DEBUG_MODE)); then
 	store_gh_search_debug="${debug_directory}/gh_search_debug"
 	store_grep_extended_debug="${debug_directory}/grep_extended_debug"
 
-	# Redirect stdout and stderr to both the terminal and the debug file.
-	exec &> >(command tee -a "$store_all_debug")
-
 	# 'GH_DEBUG' is useful for understanding the reasons behind failed GitHub API calls.
 	export GH_DEBUG=api
 
@@ -66,8 +63,8 @@ error_handler() {
 			--language bash \
 			--line-range $((lineno - 3)):+7 \
 			--style numbers \
-			--terminal-width $((${COLUMNS:-$(tput cols)} - 4)) "${BASH_SOURCE[0]}" \
-			--wrap never |
+			--terminal-width $((${COLUMNS:-$(tput cols)} - 4)) \
+			--wrap never -- "${BASH_SOURCE[0]}" |
 			command sed 's/^/  /;4s/  />>/'
 	} >&2
 	exit "$exit_code"
@@ -885,10 +882,10 @@ main() {
 	trap - ERR
 
 	# NOTE: The 'change-preview-window' action in 'transform' should precede 'change-preview'.
-	# NOTE: In the transform action, placeholders and functions using placeholders as arguments must be
-	# escaped, e.g. '\view_contents \{}', but not 'print_help_text'.
-	# TODO: The hotkeys 'ctrl-t' and '?' may cause issues if used during certain operations; a solution
-	# is needed to address this complexity.
+	# NOTE: In the transform action, placeholders and functions using placeholders as arguments must
+	# be escaped, e.g. '\view_contents \{}', but not 'print_help_text'.
+	# TODO: The hotkeys 'ctrl-t' and '?' may cause issues if used during certain operations; a
+	# solution is needed to address this complexity.
 	fzf_basic_style \
 		--bind "change:first+reload:command sleep 0.5; gh_query" \
 		--bind "resize:transform:preview_transformer" \
@@ -901,9 +898,9 @@ main() {
 		--bind 'ctrl-r:reload:gh_user_limit=100 gh_query' \
 		--bind 'ctrl-space:execute:view_history_commands' \
 		--bind "ctrl-t:transform:[[ ! \$FZF_PROMPT == \"$fzf_prompt_fuzzyAB\" ]] &&
-		echo 'unbind(change)+change-prompt($fzf_prompt_fuzzyAB)+enable-search+transform-query:echo \{fzf:query} > $store_search_string; command cat $store_fuzzy_search_string' ||
-		echo 'rebind(change)+change-prompt($default_fzf_prompt)+disable-search+transform-query:echo \{fzf:query} > $store_fuzzy_search_string; command cat $store_search_string'" \
-		--bind 'ctrl-x:execute-silent:open_query_in_browser {fzf:query}' \
+		echo 'unbind(change)+change-prompt($fzf_prompt_fuzzyAB)+enable-search+transform-query:echo \{q} > $store_search_string; command cat $store_fuzzy_search_string' ||
+		echo 'rebind(change)+change-prompt($default_fzf_prompt)+disable-search+transform-query:echo \{q} > $store_fuzzy_search_string; command cat $store_search_string'" \
+		--bind 'ctrl-x:execute-silent:open_query_in_browser {q}' \
 		--bind $'enter:execute:[[ $FZF_MATCH_COUNT -ge 1 ]] && view_contents {}' \
 		--bind 'esc:become:' \
 		--bind "tab:change-prompt($default_fzf_prompt)+change-preview(view_contents {})+change-preview-window:hidden:hidden|+{1}+3/3" \

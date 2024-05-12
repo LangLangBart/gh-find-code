@@ -84,6 +84,26 @@ gh ext remove LangLangBart/gh-find-code
 
 ---
 
+## 🌐 Environment Variables
+
+**Table 1: Environment Variables Utilized**
+
+| Variable           | Purpose                                | Default            |
+| ------------------ | -------------------------------------- | ------------------ |
+| `BAT_THEME`        | Preview theme for syntax highlighting. | `Monokai Extended` |
+| `EDITOR`           | Editor to open selected files.         | System-specific    |
+| `PAGER`            | Pager for file viewing.                | System-specific    |
+
+**Table 2: Environment Variables Defined and Utilized**
+
+| Variable             | Purpose                       | Default                                      |
+| -------------------- | ----------------------------- | -------------------------------------------- |
+| `GHFC_DEBUG_MODE`    | Enable debug mode             | `0` (Disabled)                               |
+| `GHFC_HISTORY_FILE`  | Custom location               | `${BASH_SOURCE%/*}/gh_find_code_history.txt` |
+| `GHFC_HISTORY_LIMIT` | Max number of stored commands | `500`                                        |
+
+---
+
 ## 💁 TIPS
 
 ### Alias
@@ -98,25 +118,13 @@ alias ghfc='BAT_THEME="Dracula" EDITOR="vim" gh find-code'
 ```
 
 ### Bat
-- The color scheme of the preview is determined by the `BAT_THEME` environment
-  variable. If not explicitly set by the user, the theme defaults to `Monokai
-  Extended`.
-
+- Set `BAT_THEME` to change the preview color scheme:
 ```sh
 # To view all default themes
 bat --list-themes --color=never
 # Recommended themes: 1337, Dracula, gruvbox-dark, Monokai Extended
 # To launch this extension with the 'Dracula' theme
 BAT_THEME="Dracula" gh find-code
-```
-
-### Debugging
-- To activate debug mode, set `GHFC_DEBUG_MODE=1`. This enables `xtrace` and
-  logs outputs to a file, with the file's location displayed after script
-  execution.
-
-```bash
-GHFC_DEBUG_MODE=1 gh find-code
 ```
 
 ### Editor
@@ -147,21 +155,12 @@ export FZF_DEFAULT_OPTS="
 - **NOTE:** [How to use ALT commands in a terminal on macOS?](https://superuser.com/questions/496090/how-to-use-alt-commands-in-a-terminal-on-os-x)
 
 ### History
-- Recent commands can be viewed with <kbd>⌃ Control</kbd> + <kbd>Space</kbd>.
-- The history file stores successfully completed unique commands, one can
-  specify a custom location using the `GHFC_HISTORY_FILE` environment variable.
+- The history file stores successfully completed unique commands.
+- Customize history file location and limit:
 
-```bash
-# Default location: ${BASH_SOURCE%/*}/gh_find_code_history.txt
+```sh
 # Specify a custom location for the history file
 GHFC_HISTORY_FILE="/custom/location/history.txt" gh find-code
-```
-
-- In case of duplicates, only the most recent entry is preserved. The default
-  maximum number of command entries is **500**, but this can be adjusted by
-  setting the `GHFC_HISTORY_LIMIT` variable.
-
-```bash
 # Set the maximum number of stored commands to 1000
 GHFC_HISTORY_LIMIT="1000" gh find-code
 ```
