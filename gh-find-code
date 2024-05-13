@@ -11,6 +11,12 @@ set -o allexport -o errexit -o errtrace -o nounset -o pipefail
 ###############################################################################
 
 GHFC_DEBUG_MODE=${GHFC_DEBUG_MODE:-0}
+
+die() {
+	echo ERROR: "$*" >&2
+	exit 1
+}
+
 if ((GHFC_DEBUG_MODE)); then
 	debug_directory=$(command mktemp -d)
 	store_all_debug="${debug_directory}/all_debug"
@@ -18,25 +24,28 @@ if ((GHFC_DEBUG_MODE)); then
 	store_gh_search_debug="${debug_directory}/gh_search_debug"
 	store_grep_extended_debug="${debug_directory}/grep_extended_debug"
 
+	# might not always be needed since it also captures all the escape sequences, disabled for now
+	# exec &> >(command tee -a "$store_all_debug")
+
 	# 'GH_DEBUG' is useful for understanding the reasons behind failed GitHub API calls.
 	export GH_DEBUG=api
 
-	# Redirect xtrace output to a file.
+	# Ensure Bash 4.1+ for BASH_XTRACEFD support.
+	if [[ ${BASH_VERSINFO[0]} -lt 4 || (${BASH_VERSINFO[0]} -eq 4 && ${BASH_VERSINFO[1]} -lt 1) ]]; then
+		die "Bash 4.1 or newer is required for debugging. Current version: ${BASH_VERSION}"
+	fi
+
+	# Write xtrace output to file descriptor 6, appending to a file.
 	exec 6>>"$store_all_debug"
-	# Write the trace output to file descriptor 6.
 	BASH_XTRACEFD=6
-
 	# Use a more detailed execution trace prompt.
-	PS4='+$(date +%Y-%m-%d:%H:%M:%S) ${FUNCNAME[0]:-}:L${LINENO:-}:  '
+	PS4='+ $(date +%Y-%m-%d:%H:%M:%S) [${BASH_SOURCE[0]:+${BASH_SOURCE[0]##*/}}:${FUNCNAME[0]:+${FUNCNAME[0]}():}${LINENO}]:  '
 	set -o xtrace
-	# Ensure xtrace is enabled in all child processes started by 'fzf'.
-	execution_shell="$(which bash) -o xtrace -c"
-fi
 
-die() {
-	echo ERROR: "$*" >&2
-	exit 1
-}
+	# Ensure xtrace is enabled in all child processes started by 'fzf'.
+	# NOTE: To view errors while running in debug mode, display them in the preview window of fzf.
+	execution_shell="$(which bash) -o xtrace -o errexit -o errtrace -o nounset -o pipefail -c"
+fi
 
 BAT_THEME=${BAT_THEME:-Monokai Extended}
 bat_executable=""
@@ -48,7 +57,7 @@ for value in bat batcat; do
 	fi
 done
 builtin unset value
-[[ -z $bat_executable ]] && die "'bat' was not found."
+[[ -z $bat_executable ]] && die "The 'bat' command is required but was not found."
 
 # Enable 'errtrace' to ensure the ERR trap is inherited by functions, command substitutions and
 # commands executed in a subshell environment.
@@ -238,7 +247,7 @@ validate_environment() {
 		fi
 	done
 	# If no suitable python version was found, terminate the script
-	[[ -z $python_executable ]] && die "No suitable 'python' version found."
+	[[ -z $python_executable ]] && die "No suitable 'python' version found. Required: 'python >= $min_python_version'."
 
 	# Verify if there are at least two spaces between columns. The delimiter in 'fzf' is set to
 	# '\t' or '\s\s+' to separate fields. By default, the 'column' command should separate any
@@ -507,8 +516,6 @@ gh_query() {
 				# characters, such as hashtags (#).
 				sanitized_owner_repo_name=$(sanitize_input "$owner_repo_name")
 				sanitized_file_path=$(sanitize_input "$file_path")
-				command cp "$store_file_contents" "${store_file_contents}_${index}"
-				command cp "$store_file_contents" "${store_file_contents}_${index}_line_numbers"
 				(
 					# Run gh api commands with lower priority using nice
 					# https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap03.html#tag_03_244
@@ -604,7 +611,7 @@ gh_query() {
 
 				# These lines are used as a mechanism to stop the loop from continuing to send POST
 				# requests, otherwise it will block the 'view_history_commands' function
-				while [[ $(<"$store_hold_gh_query_loop") == "hold" ]]; do
+				while [[ -s $store_hold_gh_query_loop && $(<"$store_hold_gh_query_loop") == "hold" ]]; do
 					command sleep 0.1
 				done
 				curl_custom "transform-header:printf '%b%s/%s of %s collected...%b' '$DARK_GRAY' \
@@ -722,10 +729,11 @@ view_contents() {
 	IFS=' ' read -ra line_numbers <"${store_file_contents}_${index}_line_numbers"
 
 	# NOTE: The '--line-range' in 'bat' overrides preceding flags. However, the
-	# '--highlight-line' attribute can be utilized multiple times.
+	# '-H, --highlight-line' attribute can be utilized multiple times.
 	# https://github.com/sharkdp/bat/pull/162#pullrequestreview-125072252
 	for number in "${line_numbers[@]}"; do
-		bat_args+=("--highlight-line=${number}")
+		# use the short form to avoid making the command unnecessarily long
+		bat_args+=("-H=${number}")
 	done
 	file_name=$(command basename "$file_path")
 
