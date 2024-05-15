@@ -24,8 +24,8 @@ if ((GHFC_DEBUG_MODE)); then
 	store_gh_search_debug="${debug_directory}/gh_search_debug"
 	store_grep_extended_debug="${debug_directory}/grep_extended_debug"
 
-	# might not always be needed since it also captures all the escape sequences, disabled for now
-	# exec &> >(command tee -a "$store_all_debug")
+	# https://github.com/junegunn/fzf/discussions/3792
+	exec &> >(command tee -a "$store_all_debug")
 
 	# 'GH_DEBUG' is useful for understanding the reasons behind failed GitHub API calls.
 	export GH_DEBUG=api
@@ -42,9 +42,8 @@ if ((GHFC_DEBUG_MODE)); then
 	PS4='+ $(date +%Y-%m-%d:%H:%M:%S) [${BASH_SOURCE[0]:+${BASH_SOURCE[0]##*/}}:${FUNCNAME[0]:+${FUNCNAME[0]}():}${LINENO}]:  '
 	set -o xtrace
 
-	# Ensure xtrace is enabled in all child processes started by 'fzf'.
-	# NOTE: To view errors while running in debug mode, display them in the preview window of fzf.
-	execution_shell="$(which bash) -o xtrace -o errexit -o errtrace -o nounset -o pipefail -c"
+	# Ensure xtrace is enabled in all child processes started by 'fzf'; 'errexit' is too strict
+	execution_shell="$(which bash) -o xtrace -o nounset -o pipefail -c"
 fi
 
 BAT_THEME=${BAT_THEME:-Monokai Extended}
@@ -824,7 +823,7 @@ view_history_commands() {
 	# The additional pipe for 'bat' is used to improve text visibility.
 	history_command=$'command sed \'1!G;h;$!d\' "$GHFC_HISTORY_FILE" | command nl -s "\t" -n ln -w 3 | command '$bat_executable' --plain --color=always'
 	# The Ctrl+C keybind instantly closes 'fzf' by terminating both instances.
-	selection=$(
+	if selection=$(
 		fzf_basic_style \
 			--bind "change:first" \
 			--bind "start:reload:$history_command" \
@@ -832,6 +831,7 @@ view_history_commands() {
 			--bind "ctrl-d:reload:remove_history {2..}; $history_command" \
 			--bind "ctrl-r:reload:$history_command" \
 			--bind 'ctrl-space:abort' \
+			--bind 'enter:accept' \
 			--bind 'esc:abort' \
 			--color "header:${header_color:--1}" \
 			--delimiter '\s+' \
@@ -840,9 +840,7 @@ view_history_commands() {
 			--preview-window 'hidden' \
 			--prompt 'Select a History Entry > ' \
 			--scheme history
-	)
-
-	if [[ -n $selection ]]; then
+	) && [[ -n $selection ]]; then
 		selection="$(command awk '{$1=""; sub(/^[ \t]+/, ""); print $0}' <<<"$selection")"
 		curl_custom "change-query:$selection"
 	fi
