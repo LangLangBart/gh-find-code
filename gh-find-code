@@ -39,7 +39,12 @@ if ((GHFC_DEBUG_MODE)); then
 	exec 6>>"$store_all_debug"
 	BASH_XTRACEFD=6
 	# Use a more detailed execution trace prompt.
-	PS4='+ $(date +%Y-%m-%d:%H:%M:%S) [${BASH_SOURCE[0]:+${BASH_SOURCE[0]##*/}}:${FUNCNAME[0]:+${FUNCNAME[0]}():}${LINENO}]:  '
+	# Check if the date command supports milliseconds; macOS native 'date' doesn't support '%3N'
+	PS4='+ $(date +%H:%M:%S:%3N) [${BASH_SOURCE[0]:+${BASH_SOURCE[0]##*/}}:${FUNCNAME[0]:+${FUNCNAME[0]}():}${LINENO}]:  '
+	# Fall back to zsh for displaying milliseconds with prompt sequences
+	if command -v zsh &>/dev/null && [[ "$(date +%3N 2>/dev/null)" == "3N" ]]; then
+		PS4='+ $(zsh -c "print -Pr -- %D{%T:%3.}") [${BASH_SOURCE[0]:+${BASH_SOURCE[0]##*/}}:${FUNCNAME[0]:+${FUNCNAME[0]}():}${LINENO}]:  '
+	fi
 	set -o xtrace
 
 	# Ensure xtrace is enabled in all child processes started by 'fzf'; 'errexit' is too strict
@@ -637,7 +642,7 @@ gh_query() {
 					# for now, I'm opting to use grep.
 				done < <(command grep --color=never --line-number --text \
 					--extended-regexp --regexp="$sanitized_patterns" -- \
-					"${store_file_contents}_${index}_fetched" 2>"${redirect_location}" | cut -d: -f1)
+					"${store_file_contents}_${index}_fetched" 2>"${redirect_location}" | command cut -d: -f1)
 				# Save additional information only if an error is encountered by grep
 				if ((GHFC_DEBUG_MODE)) && [[ -s ${store_grep_extended_debug}_${index} ]]; then
 					{
