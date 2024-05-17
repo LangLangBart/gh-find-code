@@ -39,9 +39,8 @@ if ((GHFC_DEBUG_MODE)); then
 	exec 6>>"$store_all_debug"
 	BASH_XTRACEFD=6
 	# Use a more detailed execution trace prompt.
-	# Check if the date command supports milliseconds; macOS native 'date' doesn't support '%3N'
 	PS4='+ $(date +%H:%M:%S:%3N) [${BASH_SOURCE[0]:+${BASH_SOURCE[0]##*/}}:${FUNCNAME[0]:+${FUNCNAME[0]}():}${LINENO}]:  '
-	# Fall back to zsh for displaying milliseconds with prompt sequences
+	# Use zsh for milliseconds in prompt; macOS 'date' lacks '%3N' support
 	if command -v zsh &>/dev/null && [[ "$(date +%3N 2>/dev/null)" == "3N" ]]; then
 		PS4='+ $(zsh -c "print -Pr -- %D{%T:%3.}") [${BASH_SOURCE[0]:+${BASH_SOURCE[0]##*/}}:${FUNCNAME[0]:+${FUNCNAME[0]}():}${LINENO}]:  '
 	fi
@@ -434,16 +433,17 @@ gh_query() {
 	local matched_line error_encountered update_preview_window_size redirect_location index_color
 	local base_name dir_name
 	declare -a line_numbers
-	if [[ -z $FZF_QUERY ]]; then
+
+	# delete leading and trailing whitespace from the query
+	trimmed_query=$(command awk '{$1=$1;print}' <<<"$FZF_QUERY")
+
+	if [[ -z $trimmed_query ]]; then
 		# in cases where the user enters a space, causing a failure in search, and then deletes the
 		# space, the prompt needs to be reset
 		reset_default_prompt
 		curl_custom "transform-header:printf '%b? help · esc quit\nPlease enter a search query.%b' '$DARK_GRAY' '$COLOR_RESET'"
 		return
 	fi
-
-	# delete leading and trailing whitespace from the query
-	trimmed_query=$(command awk '{$1=$1;print}' <<<"$FZF_QUERY")
 
 	# If the query is the same as before, don't bother running it again, provided that the results
 	# of the last query are still there and there was no error. Useful when switching between fuzzy
