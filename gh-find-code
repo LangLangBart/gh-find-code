@@ -866,8 +866,6 @@ preview_transformer() {
 }
 
 main() {
-	validate_environment
-
 	# CLI Options
 	while getopts ":hl:" value; do
 		case $value in
@@ -889,6 +887,7 @@ main() {
 	done
 	shift "$((OPTIND - 1))"
 
+	validate_environment
 	# Disable the ERR trap to ignore SIGINT from terminating 'fzf' with Ctrl+C.
 	trap - ERR
 
