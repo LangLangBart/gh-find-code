@@ -901,7 +901,7 @@ main() {
 		--bind "resize:transform:preview_transformer" \
 		--bind "start:reload:gh_query" \
 		--bind 'ctrl-b:execute-silent:command gh browse --repo {4} {5}:{1}' \
-		--bind "ctrl-o:transform:[[ \$FZF_MATCH_COUNT -ge 1 && ${EDITOR##*/} =~ ^(code|codium)$ ]] &&
+		--bind "ctrl-o:transform:[[ \$FZF_MATCH_COUNT -ge 1 && \${EDITOR##*/} =~ ^(code|codium)$ ]] &&
 		echo 'execute-silent:open_in_editor=true \view_contents \{}' ||
 		echo 'execute:open_in_editor=true \view_contents \{}'" \
 		--bind "ctrl-p:transform-query:echo repo:{4}" \
