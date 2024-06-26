@@ -727,7 +727,10 @@ view_contents() {
 		"--color=always"
 	)
 
-	[[ $file_extension != "null" ]] && if command "$bat_executable" --language "$file_extension" <<<"test" >/dev/null 2>&1; then
+	# NOTE: The '--color=always' flag is important as it alters the exit status when all output is
+	# redirected to /dev/null. This is a very unintuitive design decision by 'bat' or a bug.
+	[[ $file_extension != "null" ]] && if command "$bat_executable" --color=always \
+		--language "$file_extension" <<<"test" &>/dev/null; then
 		bat_args+=("--language=${file_extension}")
 	fi
 	IFS=' ' read -ra line_numbers <"${store_file_contents}_${index}_line_numbers"
