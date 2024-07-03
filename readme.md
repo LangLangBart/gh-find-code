@@ -49,12 +49,12 @@ gh find-code [Flags] [Search query]
 
 | Key Bindings fzf                | Description                          |
 | ------------------------------- | ------------------------------------ |
-| <kbd>?</kbd>                    | help                                 |
+| <kbd>?</kbd>                    | toggle help                          |
 | <kbd>ctrl</kbd><kbd>b</kbd>     | open the file in the browser         |
 | <kbd>ctrl</kbd><kbd>o</kbd>     | open the file content in the editor  |
 | <kbd>ctrl</kbd><kbd>p</kbd>     | replace query with "repo:owner/name" |
 | <kbd>ctrl</kbd><kbd>r</kbd>     | reload with up to 100 results        |
-| <kbd>ctrl</kbd><kbd>space</kbd> | display the history commands         |
+| <kbd>ctrl</kbd><kbd>space</kbd> | toggle command history               |
 | <kbd>ctrl</kbd><kbd>t</kbd>     | toggle between Code and Fuzzy search |
 | <kbd>ctrl</kbd><kbd>x</kbd>     | open the search query in the browser |
 | <kbd>enter</kbd>                | open the file in the pager           |
@@ -88,11 +88,11 @@ gh ext remove LangLangBart/gh-find-code
 
 **Table 1: Environment Variables Utilized**
 
-| Variable           | Purpose                                | Default            |
-| ------------------ | -------------------------------------- | ------------------ |
-| `BAT_THEME`        | Preview theme for syntax highlighting. | `Monokai Extended` |
-| `EDITOR`           | Editor to open selected files.         | System-specific    |
-| `PAGER`            | Pager for file viewing.                | System-specific    |
+| Variable    | Purpose                                | Default            |
+| ----------- | -------------------------------------- | ------------------ |
+| `BAT_THEME` | Preview theme for syntax highlighting. | `Monokai Extended` |
+| `EDITOR`    | Editor to open selected files.         | `vim`              |
+| `PAGER`     | Pager for file viewing.                | `less`             |
 
 **Table 2: Environment Variables Defined and Utilized**
 
@@ -101,6 +101,33 @@ gh ext remove LangLangBart/gh-find-code
 | `GHFC_DEBUG_MODE`    | Enable debug mode             | `0` (Disabled)                               |
 | `GHFC_HISTORY_FILE`  | Custom location               | `${BASH_SOURCE%/*}/gh_find_code_history.txt` |
 | `GHFC_HISTORY_LIMIT` | Max number of stored commands | `500`                                        |
+
+
+To avoid interfering with a user's typical keybinds, you can overwrite the following keybinds to
+another key. For example, change `ctrl-p` to `alt-u`.
+
+```sh
+# .bashrc/.zshrc
+export GHFC_FILTER_BY_REPO_KEY="alt-u"
+```
+
+> [!NOTE]
+> The assigned key must be a valid key listed under `AVAILABLE KEYS` in the `fzf` man page.
+> ```sh
+> man fzf | less --pattern "AVAILABLE KEYS"
+> ```
+
+| Variable                       | Purpose                              | Default      |
+| ------------------------------ | ------------------------------------ | ------------ |
+| `GHFC_OPEN_BROWSER_KEY`        | open the file in the browser         | `ctrl-b`     |
+| `GHFC_OPEN_EDITOR_KEY`         | open the file content in the editor  | `ctrl-o`     |
+| `GHFC_FILTER_BY_REPO_KEY`      | replace query with "repo:owner/name" | `ctrl-p`     |
+| `GHFC_RELOAD_KEY`              | reload with up to 100 results        | `ctrl-r`     |
+| `GHFC_TOGGLE_HISTORY_KEY`      | toggle command history               | `ctrl-space` |
+| `GHFC_TOGGLE_FUZZY_SEARCH_KEY` | toggle between Code and Fuzzy search | `ctrl-t`     |
+| `GHFC_OPEN_BROWSER_QUERY_KEY`  | open the search query in the browser | `ctrl-x`     |
+| `GHFC_VIEW_CONTENTS_KEY`       | open the file in the pager           | `enter`      |
+| `GHFC_TOGGLE_PREVIEW_KEY`      | toggle the file preview              | `tab`        |
 
 ---
 
@@ -164,10 +191,6 @@ GHFC_HISTORY_FILE="/custom/location/history.txt" gh find-code
 # Set the maximum number of stored commands to 1000
 GHFC_HISTORY_LIMIT="1000" gh find-code
 ```
-
-### Pager
-- If the `PAGER` environment variable is set to `less` or `bat`, when opening
-  the destination file, it will automatically scroll to the matching line found.
 
 ---
 
