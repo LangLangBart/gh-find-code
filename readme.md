@@ -104,11 +104,10 @@ gh ext remove LangLangBart/gh-find-code
 
 
 To avoid interfering with a user's typical keybinds, you can overwrite the following keybinds to
-another key. For example, change `ctrl-p` to `alt-u`.
+another key. For example, change `ctrl-p` to `ctrl-u`.
 
 ```sh
-# .bashrc/.zshrc
-export GHFC_FILTER_BY_REPO_KEY="alt-u"
+GHFC_FILTER_BY_REPO_KEY="ctrl-u" gh find-code
 ```
 
 > [!NOTE]
