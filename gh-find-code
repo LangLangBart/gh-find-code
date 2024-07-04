@@ -5,12 +5,36 @@ set -o allexport -o errexit -o errtrace -o nounset -o pipefail
 # TODO: lookout for Github adding regex support to the REST or GraphQL API
 # TODO: add tests - https://github.com/dodie/testing-in-bash
 # TODO: replace python with a more typical bash solution
+# TODO: Use the new '--info-command' from fzf 0.54.0 for the  history and apply 'ctrl-t' to search
+# for context, similar to 'zdharma-continuum/history-search-multi-word'
+
+###############################################################################
+# Environment Variables
+###############################################################################
+
+# Sets default values for environment variables using the ':' command, which evaluates the
+# expressions without executing them.
+: "${BAT_THEME:=Monokai Extended}"
+: "${EDITOR:=vim}"
+: "${PAGER:=less}"
+: "${GHFC_DEBUG_MODE:=0}"
+: "${GHFC_HISTORY_FILE:=${BASH_SOURCE%/*}/gh_find_code_history.txt}"
+: "${GHFC_HISTORY_LIMIT:=500}"
+
+# Customizable keys
+: "${GHFC_OPEN_BROWSER_KEY:=ctrl-b}"
+: "${GHFC_OPEN_EDITOR_KEY:=ctrl-o}"
+: "${GHFC_FILTER_BY_REPO_KEY:=ctrl-p}"
+: "${GHFC_RELOAD_KEY:=ctrl-r}"
+: "${GHFC_TOGGLE_HISTORY_KEY:=ctrl-space}"
+: "${GHFC_TOGGLE_FUZZY_SEARCH_KEY:=ctrl-t}"
+: "${GHFC_OPEN_BROWSER_QUERY_KEY:=ctrl-x}"
+: "${GHFC_VIEW_CONTENTS_KEY:=enter}"
+: "${GHFC_TOGGLE_PREVIEW_KEY:=tab}"
 
 ###############################################################################
 # Debugging and Error Handling Configuration
 ###############################################################################
-
-GHFC_DEBUG_MODE=${GHFC_DEBUG_MODE:-0}
 
 die() {
 	echo ERROR: "$*" >&2
@@ -50,7 +74,6 @@ if ((GHFC_DEBUG_MODE)); then
 	execution_shell="$(which bash) -o xtrace -o nounset -o pipefail -c"
 fi
 
-BAT_THEME=${BAT_THEME:-Monokai Extended}
 bat_executable=""
 # Check for 'bat' early, as it is needed for the error_handler function.
 for value in bat batcat; do
@@ -102,8 +125,6 @@ WHITE_BOLD='\033[1;97m'
 DARK_GRAY='\033[0;90m'
 
 FZF_API_KEY=$(command head -c 32 /dev/urandom | command base64)
-GHFC_HISTORY_LIMIT=${GHFC_HISTORY_LIMIT:-500}
-GHFC_HISTORY_FILE=${GHFC_HISTORY_FILE:-${BASH_SOURCE%/*}/gh_find_code_history.txt}
 
 open_in_editor=false
 # Note: Using prompts of the same character length helps maintain user focus by avoiding shifts in
@@ -312,16 +333,16 @@ ${WHITE_BOLD}Flags${COLOR_RESET}
   ${GREEN_NORMAL}-h${COLOR_RESET}  help
 
 ${WHITE_BOLD}Hotkeys${COLOR_RESET}
-  ${GREEN_NORMAL}?         ${COLOR_RESET}  help
-  ${GREEN_NORMAL}ctrl-b    ${COLOR_RESET}  open the file in the browser
-  ${GREEN_NORMAL}ctrl-o    ${COLOR_RESET}  open the file content in the editor
-  ${GREEN_NORMAL}ctrl-p    ${COLOR_RESET}  replace query with "repo:owner/name"
-  ${GREEN_NORMAL}ctrl-r    ${COLOR_RESET}  reload with up to 100 results
-  ${GREEN_NORMAL}ctrl-space${COLOR_RESET}  display the history commands
-  ${GREEN_NORMAL}ctrl-t    ${COLOR_RESET}  toggle between Code and Fuzzy search
-  ${GREEN_NORMAL}ctrl-x    ${COLOR_RESET}  open the search query in the browser
-  ${GREEN_NORMAL}enter     ${COLOR_RESET}  open the file in the pager
-  ${GREEN_NORMAL}tab       ${COLOR_RESET}  toggle the file preview
+  ${GREEN_NORMAL}?         ${COLOR_RESET}  toggle help
+  ${GREEN_NORMAL}${GHFC_OPEN_BROWSER_KEY}    ${COLOR_RESET}  open the file in the browser
+  ${GREEN_NORMAL}${GHFC_OPEN_EDITOR_KEY}    ${COLOR_RESET}  open the file content in the editor
+  ${GREEN_NORMAL}${GHFC_FILTER_BY_REPO_KEY}    ${COLOR_RESET}  replace query with "repo:owner/name"
+  ${GREEN_NORMAL}${GHFC_RELOAD_KEY}    ${COLOR_RESET}  reload with up to 100 results
+  ${GREEN_NORMAL}${GHFC_TOGGLE_HISTORY_KEY}${COLOR_RESET}  toggle command history
+  ${GREEN_NORMAL}${GHFC_TOGGLE_FUZZY_SEARCH_KEY}    ${COLOR_RESET}  toggle between Code and Fuzzy search
+  ${GREEN_NORMAL}${GHFC_OPEN_BROWSER_QUERY_KEY}    ${COLOR_RESET}  open the search query in the browser
+  ${GREEN_NORMAL}${GHFC_VIEW_CONTENTS_KEY}     ${COLOR_RESET}  open the file in the pager
+  ${GREEN_NORMAL}${GHFC_TOGGLE_PREVIEW_KEY}       ${COLOR_RESET}  toggle the file preview
   ${GREEN_NORMAL}esc       ${COLOR_RESET}  quit
 
 ${WHITE_BOLD}Search query examples${COLOR_RESET}
@@ -837,8 +858,7 @@ view_history_commands() {
 			--bind "start:reload:$history_command" \
 			--bind "ctrl-c:become:curl_custom 'abort'" \
 			--bind "ctrl-d:reload:remove_history {2..}; $history_command" \
-			--bind "ctrl-r:reload:$history_command" \
-			--bind 'ctrl-space:abort' \
+			--bind "${GHFC_TOGGLE_HISTORY_KEY}:abort" \
 			--bind 'enter:accept' \
 			--bind 'esc:abort' \
 			--color "header:${header_color:--1}" \
@@ -903,23 +923,23 @@ main() {
 		--bind "change:first+reload:command sleep 0.5; gh_query" \
 		--bind "resize:transform:preview_transformer" \
 		--bind "start:reload:gh_query" \
-		--bind 'ctrl-b:execute-silent:command gh browse --repo {4} {5}:{1}' \
-		--bind "ctrl-o:transform:[[ \$FZF_MATCH_COUNT -ge 1 && \${EDITOR##*/} =~ ^(code|codium)$ ]] &&
-		echo 'execute-silent:open_in_editor=true \view_contents \{}' ||
-		echo 'execute:open_in_editor=true \view_contents \{}'" \
-		--bind "ctrl-p:transform-query:echo repo:{4}" \
-		--bind 'ctrl-r:reload:gh_user_limit=100 gh_query' \
-		--bind 'ctrl-space:execute:view_history_commands' \
-		--bind "ctrl-t:transform:[[ ! \$FZF_PROMPT == \"$fzf_prompt_fuzzyAB\" ]] &&
-		echo 'unbind(change)+change-prompt($fzf_prompt_fuzzyAB)+enable-search+transform-query:echo \{q} > $store_search_string; command cat $store_fuzzy_search_string' ||
-		echo 'rebind(change)+change-prompt($default_fzf_prompt)+disable-search+transform-query:echo \{q} > $store_fuzzy_search_string; command cat $store_search_string'" \
-		--bind 'ctrl-x:execute-silent:open_query_in_browser {q}' \
-		--bind $'enter:execute:[[ $FZF_MATCH_COUNT -ge 1 ]] && view_contents {}' \
-		--bind 'esc:become:' \
-		--bind "tab:change-prompt($default_fzf_prompt)+change-preview(view_contents {})+change-preview-window:hidden:hidden|+{1}+3/3" \
 		--bind "?:transform:[[ ! \$FZF_PROMPT =~ \"$fzf_prompt_helpABC\" ]] &&
 		echo 'change-prompt($fzf_prompt_helpABC)+change-preview-window(~0:+1)+change-preview:print_help_text' ||
 		echo 'change-prompt($default_fzf_prompt)+change-preview-window(+\{1}+3/3)+change-preview:\view_contents \{}'" \
+		--bind "${GHFC_OPEN_BROWSER_KEY}:execute-silent:command gh browse --repo {4} {5}:{1}" \
+		--bind "${GHFC_OPEN_EDITOR_KEY}:transform:[[ \$FZF_MATCH_COUNT -ge 1 && \${EDITOR##*/} =~ ^(code|codium)$ ]] &&
+		echo 'execute-silent:open_in_editor=true \view_contents \{}' ||
+		echo 'execute:open_in_editor=true \view_contents \{}'" \
+		--bind "${GHFC_FILTER_BY_REPO_KEY}:transform-query:echo repo:{4}" \
+		--bind "${GHFC_RELOAD_KEY}:reload:gh_user_limit=100 gh_query" \
+		--bind "${GHFC_TOGGLE_HISTORY_KEY}:execute:view_history_commands" \
+		--bind "${GHFC_TOGGLE_FUZZY_SEARCH_KEY}:transform:[[ ! \$FZF_PROMPT == \"$fzf_prompt_fuzzyAB\" ]] &&
+		echo 'unbind(change)+change-prompt($fzf_prompt_fuzzyAB)+enable-search+transform-query:echo \{q} > $store_search_string; command cat $store_fuzzy_search_string' ||
+		echo 'rebind(change)+change-prompt($default_fzf_prompt)+disable-search+transform-query:echo \{q} > $store_fuzzy_search_string; command cat $store_search_string'" \
+		--bind "${GHFC_OPEN_BROWSER_QUERY_KEY}:execute-silent:open_query_in_browser {q}" \
+		--bind "${GHFC_VIEW_CONTENTS_KEY}:execute:[[ \$FZF_MATCH_COUNT -ge 1 ]] && view_contents {}" \
+		--bind "${GHFC_TOGGLE_PREVIEW_KEY}:change-prompt($default_fzf_prompt)+change-preview(view_contents {})+change-preview-window:hidden:hidden|+{1}+3/3" \
+		--bind 'esc:become:' \
 		--delimiter '\t|\s\s+' \
 		--disabled \
 		--listen \
