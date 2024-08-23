@@ -5,8 +5,6 @@ set -o allexport -o errexit -o errtrace -o nounset -o pipefail
 # TODO: lookout for Github adding regex support to the REST or GraphQL API
 # TODO: add tests - https://github.com/dodie/testing-in-bash
 # TODO: replace python with a more typical bash solution
-# TODO: Use the new '--info-command' from fzf 0.54.0 for the  history and apply 'ctrl-t' to search
-# for context, similar to 'zdharma-continuum/history-search-multi-word'
 
 ###############################################################################
 # Environment Variables
@@ -145,7 +143,7 @@ gh_accept_text_match="Accept: application/vnd.github.text-match+json"
 gh_rest_api_version="X-GitHub-Api-Version:2022-11-28"
 
 # https://github.com/junegunn/fzf/releases/tag/0.52.0
-min_fzf_version="0.52.0"
+min_fzf_version="0.54.0"
 # a bug with 'gh-browse' with relative paths was fixed
 # https://github.com/cli/cli/issues/7674
 min_gh_version="2.37.0"
@@ -650,7 +648,7 @@ gh_query() {
 
 				# Escape special charters before using the string in extended 'grep'.
 				# However, the "|" character should be left unescaped.
-				sanitized_patterns=$(command sed -e 's/[][?*+.$^()]/\\&/g' <<<"$patterns")
+				sanitized_patterns=$(command sed -e 's/[][?*+.$^(){}]/\\&/g' <<<"$patterns")
 				line_numbers=()
 				[[ $patterns != "__NoPatternFound__" ]] && while IFS='' read -r matched_line; do
 					# Ensure only valid numbers are included
@@ -816,7 +814,7 @@ view_contents() {
 # Basic style for 'fzf'; useful tool:  https://vitormv.github.io/fzf-themes/
 # IMPORTANT: anything after "$@" will overwrite options in the actual command
 fzf_basic_style() {
-	: | command fzf -- \
+	command fzf -- \
 		--ansi \
 		--bind 'scroll-up:offset-up,scroll-down:offset-down' \
 		--border block \
@@ -838,7 +836,6 @@ fzf_basic_style() {
 		--scroll-off 3 \
 		--scrollbar '│▐' \
 		--separator '' \
-		--sync \
 		--unicode \
 		--with-shell "${execution_shell:-"$(which bash) -c"}" \
 		"$@"
