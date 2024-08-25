@@ -449,11 +449,11 @@ reset_default_prompt() {
 # file, the valid 'bat' file extension for syntax highlighting, the index, repo name, and file path.
 gh_query() {
 	local trimmed_query data items total_count total_count_si_format skip_count
-	local index owner_repo_name file_name file_path patterns
-	local file_extension sanitized_patterns sanitized_owner_repo_name sanitized_file_path
+	local index owner_repo_name file_name file_path pattern patterns
+	local file_extension sanitized_owner_repo_name sanitized_file_path
 	local matched_line error_encountered update_preview_window_size redirect_location index_color
 	local base_name dir_name
-	declare -a line_numbers
+	declare -a line_numbers grep_args pattern_array
 
 	# delete leading and trailing whitespace from the query
 	trimmed_query=$(command awk '{$1=$1;print}' <<<"$FZF_QUERY")
@@ -500,10 +500,11 @@ gh_query() {
 			file_name: .value.name,
 			file_path: .value.path,
 			index: (.key + 1),
-			# create a unique list of patterns separated by a vertical line to use in
-			# extended grep
+			# Create a unique list of patterns separated by the ASCII Unit Separator for safer
+			# pattern separation, as it is unlikely to appear in normal text or code, When
+			# processing these patterns later, split on \x1f, which is equivalent to the \u001F.
 			patterns: ([.value.text_matches[] | .. | .text? | select(type=="string")] as $patterns_array |
-				if $patterns_array == [] then "__NoPatternFound__" else $patterns_array | unique | join("|") end)
+				if $patterns_array == [] then "__NoPatternFound__" else $patterns_array | unique | join("\u001F") end)
 		} | [.index, .owner_repo_name, .file_name, .file_path, .patterns] | @tsv)' \
 		2>"$store_gh_search_error") || [[ -z $data ]]; then
 		if grep --quiet --ignore-case "API rate limit exceeded" "$store_gh_search_error"; then
@@ -532,7 +533,7 @@ gh_query() {
 
 			# Running commands in the background of a script can cause it to hang, especially if the
 			# command outputs to stdout: https://tldp.org/LDP/abs/html/x9644.html#WAITHANG
-			while IFS=$'\t' read -r index owner_repo_name file_name file_path patterns; do
+			while IFS=$'\t' read -r index owner_repo_name _ file_path _; do
 				# https://github.com/junegunn/fzf/issues/398
 				# Tested with 'sudo opensnoop -n bash', without a break check it keeps going through
 				# the data list. Check if the parent process is still running or kill the loop
@@ -646,34 +647,39 @@ gh_query() {
 					redirect_location="${store_grep_extended_debug}_${index}"
 				fi
 
-				# Escape special charters before using the string in extended 'grep'.
-				# However, the "|" character should be left unescaped.
-				sanitized_patterns=$(command sed -e 's/[][?*+.$^(){}]/\\&/g' <<<"$patterns")
+				# Collect the line numbers that contain the searched pattern in the file
 				line_numbers=()
-				[[ $patterns != "__NoPatternFound__" ]] && while IFS='' read -r matched_line; do
-					# Ensure only valid numbers are included
-					if [[ $matched_line =~ ^[0-9]+ ]]; then
-						line_numbers+=("$matched_line")
-					fi
-					# Use the '--text' flag, as grep will simply print 'Binary file … matches' if
-					# the file contains binary characters. It won't even throw an error.
-					# https://unix.stackexchange.com/questions/19907
-					# I compared the performance of grep and rg, finding grep to be slightly faster,
-					# even with large files (~2000 lines). I may need to investigate further, but
-					# for now, I'm opting to use grep.
-				done < <(command grep --color=never --line-number --text \
-					--extended-regexp --regexp="$sanitized_patterns" -- \
-					"${store_file_contents}_${index}_fetched" 2>"${redirect_location}" | command cut -d: -f1)
-				# Save additional information only if an error is encountered by grep
-				if ((GHFC_DEBUG_MODE)) && [[ -s ${store_grep_extended_debug}_${index} ]]; then
-					{
-						for value in "index" "owner_repo_name" "file_path" "patterns" "sanitized_patterns"; do
-							echo "$value = '${!value}'"
-						done
-					} >>"${store_grep_extended_debug}_${index}" 2>&1
-				fi
+				if [[ $patterns != "__NoPatternFound__" ]]; then
+					# Split patterns on 'Unit separator'
+					# https://condor.depaul.edu/sjost/lsp121/documents/ascii-npr.htm
+					# https://datatracker.ietf.org/doc/html/rfc20#section-4.1
+					IFS=$'\x1F' read -ra pattern_array <<<"$patterns"
+					grep_args=()
+					for pattern in "${pattern_array[@]}"; do
+						grep_args+=("--regexp=$pattern")
+					done
 
+					while IFS='' read -r matched_line; do
+						# Ensure only valid numbers are included
+						if [[ $matched_line =~ ^[0-9]+ ]]; then
+							line_numbers+=("$matched_line")
+						fi
+						# Use the '--text' flag, as grep will simply print 'Binary file … matches' if
+						# the file contains binary characters. It won't even throw an error.
+						# https://unix.stackexchange.com/questions/19907
+					done < <(command grep --color=never --line-number --text --fixed-strings "${grep_args[@]}" -- \
+						"${store_file_contents}_${index}_fetched" 2>"${redirect_location}" | command cut -d: -f1)
+					# Save debug infs only if an error is encountered
+					if ((GHFC_DEBUG_MODE)) && [[ -s ${store_grep_extended_debug}_${index} ]]; then
+						{
+							for value in "index" "owner_repo_name" "file_path" "patterns" "pattern_array[@]" "grep_args[@]"; do
+								echo "$value = '${!value}'"
+							done
+						} >>"${store_grep_extended_debug}_${index}" 2>&1
+					fi
+				fi
 				echo "${line_numbers[*]}" >"${store_file_contents}_${index}_line_numbers"
+
 				# In cases where a file path is excessively long, basename /dirname might error out
 				# and return nothing. Truncate the length to the first/last 30 chars or so.
 				# Exemplary command: gh find-code 'repo:Killua-22/LeetCode filename:atoi.c'
