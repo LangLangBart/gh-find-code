@@ -500,12 +500,18 @@ gh_query() {
 			file_name: .value.name,
 			file_path: .value.path,
 			index: (.key + 1),
-			# Create a unique list of patterns separated by the ASCII Unit Separator for safer
+			# Create a unique list of patterns separated by the ASCII Unit Separator (US) for safer
 			# pattern separation, as it is unlikely to appear in normal text or code, When
 			# processing these patterns later, split on \x1f, which is equivalent to the \u001F.
+			# https://condor.depaul.edu/sjost/lsp121/documents/ascii-npr.htm
+			# https://datatracker.ietf.org/doc/html/rfc20#section-4.1
 			patterns: ([.value.text_matches[] | .. | .text? | select(type=="string")] as $patterns_array |
 				if $patterns_array == [] then "__NoPatternFound__" else $patterns_array | unique | join("\u001F") end)
-		} | [.index, .owner_repo_name, .file_name, .file_path, .patterns] | @tsv)' \
+
+		# Separating the fields with the Record Separator (RS). '@tsv' is not suitable because it
+		# double-escapes escaped characters. '@sh' is also not viable as it uses spaces as
+		# delimiters, which cannot be reliably used since file paths can contain spaces.
+		} | [.index, .owner_repo_name, .file_name, .file_path, .patterns] | join("\u001e"))' \
 		2>"$store_gh_search_error") || [[ -z $data ]]; then
 		if grep --quiet --ignore-case "API rate limit exceeded" "$store_gh_search_error"; then
 			show_api_limits >>"$store_gh_search_error"
@@ -528,12 +534,11 @@ gh_query() {
 		[[ ${data:0:1} != "0" ]] && add_history
 
 		({
-			# first line
+			# First line
 			IFS=' ' read -r items total_count
 
-			# Running commands in the background of a script can cause it to hang, especially if the
-			# command outputs to stdout: https://tldp.org/LDP/abs/html/x9644.html#WAITHANG
-			while IFS=$'\t' read -r index owner_repo_name _ file_path _; do
+			# Split entries on 'Record Separator (RS)'
+			while IFS=$'\x1e' read -r index owner_repo_name _ file_path _; do
 				# https://github.com/junegunn/fzf/issues/398
 				# Tested with 'sudo opensnoop -n bash', without a break check it keeps going through
 				# the data list. Check if the parent process is still running or kill the loop
@@ -542,6 +547,8 @@ gh_query() {
 				# characters, such as hashtags (#).
 				sanitized_owner_repo_name=$(sanitize_input "$owner_repo_name")
 				sanitized_file_path=$(sanitize_input "$file_path")
+				# Running commands in the background of a script can cause it to hang, especially if
+				# the command outputs to stdout: https://tldp.org/LDP/abs/html/x9644.html#WAITHANG
 				(
 					# Run gh api commands with lower priority using nice
 					# https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap03.html#tag_03_244
@@ -575,7 +582,7 @@ gh_query() {
 			# input list to the file throughout the loop.
 			: >"$store_tee_append"
 			: >"$store_skip_count"
-			# first line
+			# First line
 			IFS=' ' read -r items total_count
 			# A way to shorten large numbers using SI prefixes.
 			# https://www.bipm.org/en/measurement-units/si-prefixes
@@ -590,8 +597,8 @@ gh_query() {
 			)
 			total_listed_results=$((total_count > gh_user_limit ? gh_user_limit : total_count))
 
-			# listed items
-			while IFS=$'\t' read -r index owner_repo_name file_name file_path patterns; do
+			# Listed items split by 'Record Separator (RS)'
+			while IFS=$'\x1e' read -r index owner_repo_name file_name file_path patterns; do
 				! command kill -0 "$PPID" 2>/dev/null && break
 
 				index_color="$WHITE_NORMAL"
@@ -650,9 +657,7 @@ gh_query() {
 				# Collect the line numbers that contain the searched pattern in the file
 				line_numbers=()
 				if [[ $patterns != "__NoPatternFound__" ]]; then
-					# Split patterns on 'Unit separator'
-					# https://condor.depaul.edu/sjost/lsp121/documents/ascii-npr.htm
-					# https://datatracker.ietf.org/doc/html/rfc20#section-4.1
+					# Patterns split by 'Unit Separator (US)'
 					IFS=$'\x1F' read -ra pattern_array <<<"$patterns"
 					grep_args=()
 					for pattern in "${pattern_array[@]}"; do
