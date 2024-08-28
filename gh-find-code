@@ -505,12 +505,14 @@ gh_query() {
 			# processing these patterns later, split on \x1f, which is equivalent to the \u001F.
 			# https://condor.depaul.edu/sjost/lsp121/documents/ascii-npr.htm
 			# https://datatracker.ietf.org/doc/html/rfc20#section-4.1
-			patterns: ([.value.text_matches[] | .. | .text? | select(type=="string")] as $patterns_array |
+			patterns: ([.value.text_matches[] | .. | .text? | select(type=="string") | sub("\n\\\s*$"; "")] as $patterns_array |
 				if $patterns_array == [] then "__NoPatternFound__" else $patterns_array | unique | join("\u001F") end)
 
-		# Separating the fields with the Record Separator (RS). '@tsv' is not suitable because it
-		# double-escapes escaped characters. '@sh' is also not viable as it uses spaces as
-		# delimiters, which cannot be reliably used since file paths can contain spaces.
+		# Separating the fields with the Record Separator (RS). @tsv is not suitable because it
+		# double-escapes escaped characters. The @tsv had the advantage of printing its input as a
+		# single line, thus it is necessary to remove trailing newline characters from patterns. @sh
+		# is also not viable as it uses spaces as delimiters, which cannot be reliably used since
+		# file paths can contain spaces.
 		} | [.index, .owner_repo_name, .file_name, .file_path, .patterns] | join("\u001e"))' \
 		2>"$store_gh_search_error") || [[ -z $data ]]; then
 		if grep --quiet --ignore-case "API rate limit exceeded" "$store_gh_search_error"; then
