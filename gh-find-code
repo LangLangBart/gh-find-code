@@ -16,7 +16,7 @@ set -o allexport -o errexit -o errtrace -o nounset -o pipefail
 : "${EDITOR:=vim}"
 : "${PAGER:=less}"
 : "${GHFC_DEBUG_MODE:=0}"
-: "${GHFC_HISTORY_FILE:=${BASH_SOURCE%/*}/gh_find_code_history.txt}"
+: "${GHFC_HISTORY_FILE:=${XDG_STATE_HOME:-$HOME/.local/state}/gh-find-code/history.txt}"
 : "${GHFC_HISTORY_LIMIT:=500}"
 
 # Customizable keys
@@ -297,12 +297,30 @@ validate_environment() {
 			die "$GHFC_HISTORY_FILE is a directory"
 		fi
 
+		OLD_GHFC_HISTORY_LOCATION="${BASH_SOURCE%/*}/gh_find_code_history.txt"
+
 		if [[ ! -f $GHFC_HISTORY_FILE ]]; then
-			command mkdir -p "$(command dirname "${GHFC_HISTORY_FILE}")"
-			if command touch "$GHFC_HISTORY_FILE"; then
-				echo "History file successfully created at: $GHFC_HISTORY_FILE"
+			# This is a temporary workaround needed, because the default location was changed.
+			if [[ -f $OLD_GHFC_HISTORY_LOCATION ]]; then
+				echo "Notice: The default location for the history file has changed."
+				echo -e "From:\t$OLD_GHFC_HISTORY_LOCATION"
+				echo -e "To:\t$GHFC_HISTORY_FILE"
+				echo
+				command mkdir -p "$(command dirname "${GHFC_HISTORY_FILE}")"
+				if command mv "$OLD_GHFC_HISTORY_LOCATION" "$GHFC_HISTORY_FILE"; then
+					echo "History file successfully moved to: $GHFC_HISTORY_FILE"
+					echo "Please run the command again to use the new history file location."
+					exit 0
+				else
+					die "Unable to move history file to: $GHFC_HISTORY_FILE"
+				fi
 			else
-				die "Unable to create: $GHFC_HISTORY_FILE"
+				command mkdir -p "$(command dirname "${GHFC_HISTORY_FILE}")"
+				if command touch "$GHFC_HISTORY_FILE"; then
+					echo "History file successfully created at: $GHFC_HISTORY_FILE"
+				else
+					die "Unable to create: $GHFC_HISTORY_FILE"
+				fi
 			fi
 		fi
 		[[ -r $GHFC_HISTORY_FILE ]] || die "Permission denied: unable to read from: $GHFC_HISTORY_FILE"
