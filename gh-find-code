@@ -470,8 +470,8 @@ gh_query() {
 	local index owner_repo_name file_name file_path pattern patterns
 	local file_extension sanitized_owner_repo_name sanitized_file_path
 	local matched_line error_encountered update_preview_window_size redirect_location index_color
-	local base_name dir_name
-	declare -a line_numbers grep_args pattern_array
+	local line_number base_name dir_name
+	declare -a grep_args pattern_array
 
 	# delete leading and trailing whitespace from the query
 	trimmed_query=$(command awk '{$1=$1;print}' <<<"$FZF_QUERY")
@@ -675,7 +675,7 @@ gh_query() {
 				fi
 
 				# Collect the line numbers that contain the searched pattern in the file
-				line_numbers=()
+				: >"${store_file_contents}_${index}_line_numbers"
 				if [[ $patterns != "__NoPatternFound__" ]]; then
 					# Patterns split by 'Unit Separator (US)'
 					IFS=$'\x1F' read -ra pattern_array <<<"$patterns"
@@ -684,17 +684,12 @@ gh_query() {
 						grep_args+=("--regexp=$pattern")
 					done
 
-					while IFS='' read -r matched_line; do
-						# Ensure only valid numbers are included
-						if [[ $matched_line =~ ^[0-9]+ ]]; then
-							line_numbers+=("$matched_line")
-						fi
-						# Use the '--text' flag, as grep will simply print 'Binary file … matches' if
-						# the file contains binary characters. It won't even throw an error.
-						# https://unix.stackexchange.com/questions/19907
-					done < <(command grep --color=never --line-number --text --fixed-strings "${grep_args[@]}" -- \
-						"${store_file_contents}_${index}_fetched" 2>"${redirect_location}" | command cut -d: -f1)
-					# Save debug infs only if an error is encountered
+					# Run the grep command directly with the expanded array
+					command grep --color=never --line-number --text --fixed-strings "${grep_args[@]}" -- \
+						"${store_file_contents}_${index}_fetched" 2>"${redirect_location}" |
+						command cut -d: -f1 >>"${store_file_contents}_${index}_line_numbers"
+
+					# Save debug info only if an error is encountered
 					if ((GHFC_DEBUG_MODE)) && [[ -s ${store_grep_extended_debug}_${index} ]]; then
 						{
 							for value in "index" "owner_repo_name" "file_path" "patterns" "pattern_array[@]" "grep_args[@]"; do
@@ -703,7 +698,6 @@ gh_query() {
 						} >>"${store_grep_extended_debug}_${index}" 2>&1
 					fi
 				fi
-				echo "${line_numbers[*]}" >"${store_file_contents}_${index}_line_numbers"
 
 				# In cases where a file path is excessively long, basename /dirname might error out
 				# and return nothing. Truncate the length to the first/last 30 chars or so.
@@ -718,8 +712,11 @@ gh_query() {
 				if ! base_name=$(command basename "$file_path" 2>/dev/null); then
 					base_name="…${file_path: -30}"
 				fi
+				if [[ -s "${store_file_contents}_${index}_line_numbers" ]]; then
+					line_number=$(command head -1 "${store_file_contents}_${index}_line_numbers")
+				fi
 				printf "%s\t%s\t%b%-3d%b\t%b%s%b/%b%s%b\t%b%s/%b%s%b\n" \
-					"${line_numbers:-1}" "$file_extension" "$index_color" \
+					"${line_number:-1}" "$file_extension" "$index_color" \
 					"$index" "$COLOR_RESET" "$CYAN_NORMAL" "${owner_repo_name%/*}" "$COLOR_RESET" \
 					"$CYAN_BOLD" "${owner_repo_name#*/}" "$COLOR_RESET" "$MAGENTA_NORMAL" \
 					"$dir_name" "$MAGENTA_BOLD" "$base_name" "$COLOR_RESET" |
@@ -785,15 +782,16 @@ view_contents() {
 		--language "$file_extension" <<<"test" &>/dev/null; then
 		bat_args+=("--language=${file_extension}")
 	fi
-	IFS=' ' read -ra line_numbers <"${store_file_contents}_${index}_line_numbers"
-
-	# NOTE: The '--line-range' in 'bat' overrides preceding flags. However, the
-	# '-H, --highlight-line' attribute can be utilized multiple times.
-	# https://github.com/sharkdp/bat/pull/162#pullrequestreview-125072252
-	for number in "${line_numbers[@]}"; do
+	line_numbers=()
+	while IFS= read -r matched_line; do
+		line_numbers+=("$matched_line")
+		# NOTE: The '--line-range' in 'bat' overrides preceding flags. However, the
+		# '-H, --highlight-line' attribute can be utilized multiple times.
+		# https://github.com/sharkdp/bat/pull/162#pullrequestreview-125072252
 		# use the short form to avoid making the command unnecessarily long
-		bat_args+=("-H=${number}")
-	done
+		bat_args+=("-H=${matched_line}")
+	done <"${store_file_contents}_${index}_line_numbers"
+
 	file_name=$(command basename "$file_path")
 
 	# Replace single quotes with escaped back ticks. A file_name might start with a dash
