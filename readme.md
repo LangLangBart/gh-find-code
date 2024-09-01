@@ -96,11 +96,11 @@ gh ext remove LangLangBart/gh-find-code
 
 **Table 2: Environment Variables Defined and Utilized**
 
-| Variable             | Purpose                       | Default                                      |
-| -------------------- | ----------------------------- | -------------------------------------------- |
-| `GHFC_DEBUG_MODE`    | Enable debug mode             | `0` (Disabled)                               |
-| `GHFC_HISTORY_FILE`  | Custom location               | `${BASH_SOURCE%/*}/gh_find_code_history.txt` |
-| `GHFC_HISTORY_LIMIT` | Max number of stored commands | `500`                                        |
+| Variable             | Purpose                       | Default                                                          |
+| -------------------- | ----------------------------- | ---------------------------------------------------------------- |
+| `GHFC_DEBUG_MODE`    | Enable debug mode             | `0` (Disabled)                                                   |
+| `GHFC_HISTORY_FILE`  | Custom location               | `${XDG_STATE_HOME:-$HOME/.local/state}/gh-find-code/history.txt` |
+| `GHFC_HISTORY_LIMIT` | Max number of stored commands | `500`                                                            |
 
 
 To avoid interfering with a user's typical keybinds, you can overwrite the following keybinds to
