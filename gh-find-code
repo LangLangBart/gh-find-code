@@ -297,17 +297,16 @@ validate_environment() {
 			die "$GHFC_HISTORY_FILE is a directory"
 		fi
 
-		OLD_GHFC_HISTORY_LOCATION="${BASH_SOURCE%/*}/gh_find_code_history.txt"
-
 		if [[ ! -f $GHFC_HISTORY_FILE ]]; then
 			# This is a temporary workaround needed, because the default location was changed.
-			if [[ -f $OLD_GHFC_HISTORY_LOCATION ]]; then
+			local old_ghfc_history_location="${BASH_SOURCE%/*}/gh_find_code_history.txt"
+			if [[ -f $old_ghfc_history_location ]]; then
 				echo "Notice: The default location for the history file has changed."
-				echo -e "From:\t$OLD_GHFC_HISTORY_LOCATION"
+				echo -e "From:\t$old_ghfc_history_location"
 				echo -e "To:\t$GHFC_HISTORY_FILE"
 				echo
 				command mkdir -p "$(command dirname "${GHFC_HISTORY_FILE}")"
-				if command mv "$OLD_GHFC_HISTORY_LOCATION" "$GHFC_HISTORY_FILE"; then
+				if command mv "$old_ghfc_history_location" "$GHFC_HISTORY_FILE"; then
 					echo "History file successfully moved to: $GHFC_HISTORY_FILE"
 					echo "Please run the command again to use the new history file location."
 					exit 0
