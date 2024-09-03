@@ -522,7 +522,8 @@ gh_query() {
 			# processing these patterns later, split on \x1f, which is equivalent to the \u001F.
 			# https://condor.depaul.edu/sjost/lsp121/documents/ascii-npr.htm
 			# https://datatracker.ietf.org/doc/html/rfc20#section-4.1
-			patterns: ([.value.text_matches[] | .. | .text? | select(type=="string") | sub("\n\\\s*$"; "")] as $patterns_array |
+			# Remove all newline characters from any pattern
+			patterns: ([.value.text_matches[] | .. | .text? | select(type=="string") | gsub("\n"; "")] as $patterns_array |
 				if $patterns_array == [] then "__NoPatternFound__" else $patterns_array | unique | join("\u001F") end)
 
 		# Separating the fields with the Record Separator (RS). @tsv is not suitable because it
@@ -534,6 +535,15 @@ gh_query() {
 		2>"$store_gh_search_error") || [[ -z $data ]]; then
 		if grep --quiet --ignore-case "API rate limit exceeded" "$store_gh_search_error"; then
 			show_api_limits >>"$store_gh_search_error"
+		fi
+		if grep --quiet --ignore-case "unable to parse query" "$store_gh_search_error"; then
+			cat <<EOF >>"$store_gh_search_error"
+
+ADVICE:
+1. If you are using an escape sequences inside double quotes, escape them. For example:
+   - Instead of: "Tab \t"
+   - Use: "Tab \\\t"
+EOF
 		fi
 		if [[ ! -s $store_gh_search_error ]]; then
 			echo "Unknown reason: The query failed, but no error text was written." >>"$store_gh_search_error"
