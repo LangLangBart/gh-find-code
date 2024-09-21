@@ -1,35 +1,24 @@
 ---
-default_stages: [commit]
+default_stages: [pre-commit]
 repos:
-  - repo: local
-    hooks:
-      - id: bash-3
-        name: macOS default bash version 3.2
-        entry: |
-          bash -c 'set -x
-          err=$(/bin/bash ./gh-find-code -h 2>&1 >/dev/null)
-          [[ -n $err ]] && exit 1 || exit 0'
-        language: system
-        pass_filenames: false
-        files: gh-find-code
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
       - id: end-of-file-fixer
       - id: trailing-whitespace
   - repo: https://github.com/crate-ci/typos
-    rev: v1.23.7
+    rev: v1.24.6
     hooks:
       - id: typos
-        args: [--format, brief, --write-changes]
+        args: [--format, brief, --write-changes, --force-exclude]
   - repo: local
     hooks:
       - id: binaries
         name: binary check for shellcheck/shfmt
         entry: |
-          bash -c '
+          sh -c '
           for tool in shellcheck shfmt; do
-            if ! command -v shellcheck &> /dev/null; then
+            if ! command -v $tool >/dev/null 2>&1; then
               echo "$tool could not be found, please install it"
               exit 1
             fi
@@ -58,6 +47,20 @@ repos:
       - id: markdown-link-check
         name: markdown link check
         args: [--quiet]
+  - repo: local
+    hooks:
+      - id: commit-msg-typos
+        name: check commit message for typos
+        # requires a local version of 'typos' otherwise skip it
+        entry: sh -c 'command -v typos >/dev/null 2>&1 && typos "$0" || true'
+        language: system
+        stages: [commit-msg]
+  - repo: https://github.com/jorisroovers/gitlint
+    rev: v0.19.1
+    hooks:
+      - id: gitlint
+        args: [--ignore, body-is-missing, --msg-filename]
+        stages: [commit-msg]
   - repo: https://github.com/commitizen-tools/commitizen
     rev: v3.29.0
     hooks:
