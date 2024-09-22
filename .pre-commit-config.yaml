@@ -11,58 +11,43 @@ repos:
     hooks:
       - id: typos
         args: [--format, brief, --write-changes, --force-exclude]
-  - repo: local
-    hooks:
-      - id: binaries
-        name: binary check for shellcheck/shfmt
-        entry: |
-          sh -c '
-          for tool in shellcheck shfmt; do
-            if ! command -v $tool >/dev/null 2>&1; then
-              echo "$tool could not be found, please install it"
-              exit 1
-            fi
-          done'
-        language: system
-        pass_filenames: false
-        fail_fast: true
-  - repo: https://github.com/jumanjihouse/pre-commit-hooks
-    rev: 3.0.0
-    hooks:
-      # requires a local version of 'shellcheck'
-      - id: shellcheck
-        name: shellcheck
-        args: [--external-source, --norc]
-      # requires a local version of 'shfmt'
-      - id: shfmt
-        name: shfmt
-        args: [--simplify, --indent 0, --case-indent, --write]
-  - repo: https://github.com/lyz-code/yamlfix
-    rev: 1.17.0
-    hooks:
-      - id: yamlfix
   - repo: https://github.com/tcort/markdown-link-check
     rev: v3.12.2
     hooks:
       - id: markdown-link-check
         name: markdown link check
         args: [--quiet]
-  - repo: local
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
     hooks:
-      - id: commit-msg-typos
-        name: check commit message for typos
-        # requires a local version of 'typos' otherwise skip it
-        entry: sh -c 'command -v typos >/dev/null 2>&1 && typos "$0" || true'
-        language: system
+      - id: shellcheck
+        args: [--external-source, --norc]
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.9.0-1
+    hooks:
+      - id: shfmt
+        args: [--simplify, --indent, '0', --case-indent, --write]
+  - repo: https://github.com/lyz-code/yamlfix
+    rev: 1.17.0
+    hooks:
+      - id: yamlfix
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.24.6
+    hooks:
+      - id: typos
+        name: detect typos in commit message
+        args: [--format, brief]
         stages: [commit-msg]
   - repo: https://github.com/jorisroovers/gitlint
     rev: v0.19.1
     hooks:
       - id: gitlint
+        name: validate commit message format
         args: [--ignore, body-is-missing, --msg-filename]
         stages: [commit-msg]
   - repo: https://github.com/commitizen-tools/commitizen
     rev: v3.29.0
     hooks:
       - id: commitizen
+        name: check commit message structure
         stages: [commit-msg]

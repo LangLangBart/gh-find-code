@@ -35,7 +35,6 @@ gh find-code [Flags] [Search query]
 | `filename`                     | `'filename:.zshrc GOCACHE'`      | search in all filenames `.zshrc` for `GOCACHE`          |
 | `extension`                    | `'extension:rs "Hello, world!"'` | find `.rs` files with the string `Hello, world!`        |
 
-
 > [!IMPORTANT]
 > The search syntax differs between the WebUI and the REST API, with the latter
 > not supporting regex.
@@ -101,7 +100,6 @@ gh ext remove LangLangBart/gh-find-code
 | `GHFC_DEBUG_MODE`    | Enable debug mode             | `0` (Disabled)                                                   |
 | `GHFC_HISTORY_FILE`  | Custom location               | `${XDG_STATE_HOME:-$HOME/.local/state}/gh-find-code/history.txt` |
 | `GHFC_HISTORY_LIMIT` | Max number of stored commands | `500`                                                            |
-
 
 To avoid interfering with a user's typical keybinds, you can overwrite the following keybinds to
 another key. For example, change `ctrl-p` to `ctrl-u`.
@@ -203,9 +201,6 @@ GHFC_HISTORY_LIMIT="1000" gh find-code
 > **Source:** [pre-commit introduction](https://pre-commit.com/#introduction)
 
 ```sh
-# shellcheck and shfmt are necessary dependencies for one hook
-brew install pre-commit shellcheck shfmt
-
 # install the git hook scripts
 pre-commit install --hook-type commit-msg --hook-type pre-commit
 # pre-commit installed at .git/hooks/commit-msg
