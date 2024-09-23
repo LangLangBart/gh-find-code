@@ -900,7 +900,7 @@ view_history_commands() {
 			--bind "ctrl-c:become:curl_custom 'abort'" \
 			--bind "ctrl-d:reload:remove_history {2..}; $history_command" \
 			--bind "${GHFC_TOGGLE_HISTORY_KEY}:abort" \
-			--bind 'enter:accept' \
+			--bind 'enter:accept-or-print-query' \
 			--bind 'esc:abort' \
 			--color "header:${header_color:--1}" \
 			--delimiter '\s+' \
@@ -910,7 +910,9 @@ view_history_commands() {
 			--prompt 'Select a History Entry > ' \
 			--scheme history
 	) && [[ -n $selection ]]; then
-		selection="$(command awk '{$1=""; sub(/^[ \t]+/, ""); print $0}' <<<"$selection")"
+		if [[ $selection =~ ^[1-9][0-9]*[[:blank:]]+ ]]; then
+			selection="$(command awk '{$1=""; sub(/^[ \t]+/, ""); print $0}' <<<"$selection")"
+		fi
 		curl_custom "change-query:$selection"
 	fi
 	: >"$store_hold_gh_query_loop"
