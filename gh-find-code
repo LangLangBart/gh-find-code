@@ -469,7 +469,7 @@ gh_query() {
 	local index owner_repo_name file_name file_path pattern patterns
 	local file_extension sanitized_owner_repo_name sanitized_file_path
 	local matched_line error_encountered update_preview_window_size redirect_location index_color
-	local line_number base_name dir_name
+	local wait_time line_number base_name dir_name
 	declare -a grep_args pattern_array
 
 	# delete leading and trailing whitespace from the query
@@ -484,11 +484,11 @@ gh_query() {
 	fi
 
 	# If the query is the same as before, don't bother running it again, provided that the results
-	# of the last query are still there and there was no error. Useful when switching between fuzzy
-	# mode and search mode.
+	# of the last query are still there and there was no error or skipped content. Useful when
+	# switching between fuzzy mode and search mode.
 	current_query_signature=$(echo -n "${trimmed_query}${gh_user_limit}")
 	if [[ -s $store_input_list && -s $store_current_header && ! -s $store_gh_search_error &&
-		$current_query_signature == "$(<"$store_last_query_signature")" ]]; then
+		! -s $store_skip_count && $current_query_signature == "$(<"$store_last_query_signature")" ]]; then
 		curl_custom "reload(command cat $store_input_list)+change-header:$(<"$store_current_header")"
 		return
 	fi
@@ -572,8 +572,13 @@ EOF
 				# Tested with 'sudo opensnoop -n bash', without a break check it keeps going through
 				# the data list. Check if the parent process is still running or kill the loop
 				! command kill -0 "$PPID" 2>/dev/null && break
-				# These sanitizations are necessary because file paths may contain special
-				# characters, such as hashtags (#).
+
+				# NOTE: These sanitizations are necessary because file paths may contain special
+				# characters, such as hashtags (#), and also serve as a useful delay to avoid
+				# hitting GitHub's secondary API limits. Placing the sanitizations inside the
+				# background job can significantly speed things up, but a rapid succession of
+				# requests can trigger GitHub's undocumented secondary rate limits, which restrict
+				# the number of requests permitted per minute or hour.
 				sanitized_owner_repo_name=$(sanitize_input "$owner_repo_name")
 				sanitized_file_path=$(sanitize_input "$file_path")
 				# Running commands in the background of a script can cause it to hang, especially if
@@ -652,10 +657,15 @@ EOF
 						break
 					fi
 					command sleep 0.1
+					# Simple decrement of wait time with index increase
+					wait_time=$((5 - (index - 1) / 2))
+					# Ensure wait_time doesn't go below 1
+					wait_time=$((wait_time < 1 ? 1 : wait_time))
+
 					# There could be several reasons why pulling content might fail. One reason
 					# could be outdated cached search results from GitHub. For example, a user might
 					# have deleted their account, but their content is still in the search index.
-					if ((SECONDS > 2)); then
+					if ((SECONDS > wait_time)); then
 						# The file is needed now to get the line numbers in the next step.
 						# Therefore, the file will be skipped.
 						echo "$index" >>"$store_skip_count"
