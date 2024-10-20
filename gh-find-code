@@ -469,7 +469,7 @@ gh_query() {
 	local index owner_repo_name file_name file_path pattern patterns
 	local file_extension sanitized_owner_repo_name sanitized_file_path
 	local matched_line error_encountered update_preview_window_size redirect_location index_color
-	local wait_time line_number base_name dir_name
+	local line_number base_name dir_name
 	declare -a grep_args pattern_array
 
 	# delete leading and trailing whitespace from the query
@@ -483,12 +483,16 @@ gh_query() {
 		return
 	fi
 
-	# If the query is the same as before, don't bother running it again, provided that the results
-	# of the last query are still there and there was no error or skipped content. Useful when
-	# switching between fuzzy mode and search mode.
+	# Reuse previous results if:
+	# - Previous results were fully loaded (partial results are discarded)
+	# - No errors or skipped content in last search
+	# - Current query matches last query OR the last pressed key was 'GHFC_TOGGLE_FUZZY_SEARCH_KEY'
+	# Useful when switching between fuzzy mode and search mode or repeating the same query.
 	current_query_signature=$(echo -n "${trimmed_query}${gh_user_limit}")
-	if [[ -s $store_input_list && -s $store_current_header && ! -s $store_gh_search_error &&
-		! -s $store_skip_count && $current_query_signature == "$(<"$store_last_query_signature")" ]]; then
+	if [[ -s $store_input_list && -s $store_current_header &&
+		! -s $store_gh_search_error && ! -s $store_skip_count ]] &&
+		[[ $current_query_signature == "$(<"$store_last_query_signature")" ||
+		$FZF_KEY == "$GHFC_TOGGLE_FUZZY_SEARCH_KEY" ]]; then
 		curl_custom "reload(command cat $store_input_list)+change-header:$(<"$store_current_header")"
 		return
 	fi
@@ -657,15 +661,11 @@ EOF
 						break
 					fi
 					command sleep 0.1
-					# Simple decrement of wait time with index increase
-					wait_time=$((5 - (index - 1) / 2))
-					# Ensure wait_time doesn't go below 1
-					wait_time=$((wait_time < 1 ? 1 : wait_time))
 
 					# There could be several reasons why pulling content might fail. One reason
 					# could be outdated cached search results from GitHub. For example, a user might
 					# have deleted their account, but their content is still in the search index.
-					if ((SECONDS > wait_time)); then
+					if ((SECONDS > 2)); then
 						# The file is needed now to get the line numbers in the next step.
 						# Therefore, the file will be skipped.
 						echo "$index" >>"$store_skip_count"
@@ -987,8 +987,8 @@ main() {
 		--bind "${GHFC_RELOAD_KEY}:reload:gh_user_limit=100 gh_query" \
 		--bind "${GHFC_TOGGLE_HISTORY_KEY}:execute:view_history_commands" \
 		--bind "${GHFC_TOGGLE_FUZZY_SEARCH_KEY}:transform:[[ ! \$FZF_PROMPT == \"$fzf_prompt_fuzzyAB\" ]] &&
-		echo 'unbind(change)+change-prompt($fzf_prompt_fuzzyAB)+enable-search+transform-query:echo \{q} > $store_search_string; command cat $store_fuzzy_search_string' ||
-		echo 'rebind(change)+change-prompt($default_fzf_prompt)+disable-search+transform-query:echo \{q} > $store_fuzzy_search_string; command cat $store_search_string'" \
+		echo 'unbind(change,$GHFC_RELOAD_KEY,$GHFC_OPEN_BROWSER_QUERY_KEY)+change-prompt($fzf_prompt_fuzzyAB)+enable-search+transform-query:echo \{q} > $store_search_string; command cat $store_fuzzy_search_string' ||
+		echo 'rebind(change,$GHFC_RELOAD_KEY,$GHFC_OPEN_BROWSER_QUERY_KEY)+change-prompt($default_fzf_prompt)+disable-search+transform-query:echo \{q} > $store_fuzzy_search_string; command cat $store_search_string'" \
 		--bind "${GHFC_OPEN_BROWSER_QUERY_KEY}:execute-silent:open_query_in_browser {q}" \
 		--bind "${GHFC_VIEW_CONTENTS_KEY}:execute:[[ \$FZF_MATCH_COUNT -ge 1 ]] && view_contents {}" \
 		--bind "${GHFC_TOGGLE_PREVIEW_KEY}:change-prompt($default_fzf_prompt)+change-preview(view_contents {})+change-preview-window:hidden:hidden|+{1}+3/3" \
