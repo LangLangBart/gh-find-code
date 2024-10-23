@@ -526,15 +526,20 @@ gh_query() {
 			# processing these patterns later, split on \x1f, which is equivalent to the \u001F.
 			# https://condor.depaul.edu/sjost/lsp121/documents/ascii-npr.htm
 			# https://datatracker.ietf.org/doc/html/rfc20#section-4.1
-			# Remove all newline characters from any pattern
-			patterns: ([.value.text_matches[] | .. | .text? | select(type=="string") | gsub("\n"; "")] as $patterns_array |
+
+			# Remove leading and trailing whitespace (including spaces and newlines) from the
+			# patterns. Replace any remaining newline characters within the patterns with the
+			# Unicode symbol for newline (␤) to maintain single-line processing. Note: Patterns with
+			# newlines will not match correctly in subsequent processing unless pcregrep is
+			# installed. In that case, the symbol will be replaced by a newline during matching.
+			patterns: ([.value.text_matches[] | .. | .text? | select(type=="string") |
+				sub("^\\\s+"; "") | sub("\\\s+$"; "") | gsub("\n"; "\u2424")] as $patterns_array |
 				if $patterns_array == [] then "__NoPatternFound__" else $patterns_array | unique | join("\u001F") end)
 
 		# Separating the fields with the Record Separator (RS). @tsv is not suitable because it
 		# double-escapes escaped characters. The @tsv had the advantage of printing its input as a
-		# single line, thus it is necessary to remove trailing newline characters from patterns. @sh
-		# is also not viable as it uses spaces as delimiters, which cannot be reliably used since
-		# file paths can contain spaces.
+		# single line. @sh is also not viable as it uses spaces as delimiters, which cannot be
+		# reliably used since file paths can contain spaces.
 		} | [.index, .owner_repo_name, .file_name, .file_path, .patterns] | join("\u001e"))' \
 		2>"$store_gh_search_error") || [[ -z $data ]]; then
 		if grep --quiet --ignore-case "API rate limit exceeded" "$store_gh_search_error"; then
@@ -698,18 +703,33 @@ EOF
 				if [[ $patterns != "__NoPatternFound__" ]]; then
 					# Patterns split by 'Unit Separator (US)'
 					IFS=$'\x1F' read -ra pattern_array <<<"$patterns"
-					grep_args=()
-					for pattern in "${pattern_array[@]}"; do
-						grep_args+=("--regexp=$pattern")
-					done
 
-					# Use the '--text' flag, as grep will simply print 'Binary file … matches' if
-					# the file contains binary characters. It won't even throw an error.
-					# https://unix.stackexchange.com/questions/19907
-					command grep --color=never --line-number --text --fixed-strings "${grep_args[@]}" -- \
-						"${store_file_contents}_${index}_fetched" 2>"${redirect_location}" |
-						command cut -d: -f1 >>"${store_file_contents}_${index}_line_numbers"
+					grep_args=("--color=never" "--line-number" "--text")
+					if command -v pcregrep >/dev/null &&
+						command grep --quiet --max-count=1 --fixed-strings '␤' <<<"$patterns"; then
+						# The API sometimes returns a newline character as part of a pattern
+						# especially for texts where lots of Chinese characters are used, the
+						# character is replaced with '␤' inside the jq query, if such a pattern
+						# contains '␤' replace it with '\n' and try it with pcregrep multiline.
+						for pattern in "${pattern_array[@]}"; do
+							sanitized_patterns=$(command sed 's/[][?*+.$^(){}]/\\&/g' <<<"$pattern")
+							grep_args+=("--regexp=${sanitized_patterns//␤/\\n}")
+						done
+						command pcregrep --multiline "${grep_args[@]}" -- \
+							"${store_file_contents}_${index}_fetched" 2>"${redirect_location}" |
+							command cut -d: -f1 >>"${store_file_contents}_${index}_line_numbers"
+					else
+						for pattern in "${pattern_array[@]}"; do
+							grep_args+=("--regexp=$pattern")
+						done
 
+						# Use the '--text' flag, as grep will simply print 'Binary file … matches' if
+						# the file contains binary characters. It won't even throw an error.
+						# https://unix.stackexchange.com/questions/19907
+						command grep --fixed-strings "${grep_args[@]}" -- \
+							"${store_file_contents}_${index}_fetched" 2>"${redirect_location}" |
+							command cut -d: -f1 >>"${store_file_contents}_${index}_line_numbers"
+					fi
 					# Save debug info only if an error is encountered
 					if ((GHFC_DEBUG_MODE)) && [[ -s ${store_grep_extended_debug}_${index} ]]; then
 						{
@@ -733,11 +753,13 @@ EOF
 				if ! base_name=$(command basename "$file_path" 2>/dev/null); then
 					base_name="…${file_path: -30}"
 				fi
+
+				line_number=1
 				if [[ -s "${store_file_contents}_${index}_line_numbers" ]]; then
 					line_number=$(command head -1 "${store_file_contents}_${index}_line_numbers")
 				fi
 				printf "%s\t%s\t%b%-3d%b\t%b%s%b/%b%s%b\t%b%s/%b%s%b\n" \
-					"${line_number:-1}" "$file_extension" "$index_color" \
+					"$line_number" "$file_extension" "$index_color" \
 					"$index" "$COLOR_RESET" "$CYAN_NORMAL" "${owner_repo_name%/*}" "$COLOR_RESET" \
 					"$CYAN_BOLD" "${owner_repo_name#*/}" "$COLOR_RESET" "$MAGENTA_NORMAL" \
 					"$dir_name" "$MAGENTA_BOLD" "$base_name" "$COLOR_RESET" |
