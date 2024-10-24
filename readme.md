@@ -189,10 +189,10 @@ GHFC_HISTORY_FILE="/custom/location/history.txt" gh find-code
 GHFC_HISTORY_LIMIT="1000" gh find-code
 ```
 
-### pcregrep
-- If the API returns patterns with newline characters, `pcregrep` will be used to find line numbers
-  if installed; otherwise, `grep` will be used by default, which may not match patterns containing
-  newlines.
+### Pattern Matching
+- In rare cases, when the API returns patterns with newline characters, `pcre2grep`, `pcregrep`, or
+  `rg` will be used to find line numbers if any of them is installed. Otherwise, `grep` will be used
+  by default, which will not match patterns containing newlines.
 
 ---
 

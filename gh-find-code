@@ -151,6 +151,7 @@ min_gh_version="2.37.0"
 # https://docs.python.org/3/library/urllib.parse.html
 min_python_version="3.0.0"
 python_executable=""
+multiline_grep_executable=""
 # Creating temporary files. The current setup works but is very verbose. An attempt to use
 # associative arrays with 'declare -A' was unsuccessful as I couldn't access the associated
 # filename in child processes.
@@ -272,6 +273,15 @@ validate_environment() {
 	done
 	# If no suitable python version was found, terminate the script
 	[[ -z $python_executable ]] && die "No suitable 'python' version found. Required: 'python >= $min_python_version'."
+
+	# Optional: Check for advanced pattern matching support
+	for value in pcre2grep pcregrep rg; do
+		if command -v $value >/dev/null &&
+			$value --quiet --multiline --regexp='A\nB' <<<"$(printf "A\nB")" >/dev/null 2>&1; then
+			multiline_grep_executable="$value"
+			break
+		fi
+	done
 
 	# Verify if there are at least two spaces between columns. The delimiter in 'fzf' is set to
 	# '\t' or '\s\s+' to separate fields. By default, the 'column' command should separate any
@@ -530,8 +540,9 @@ gh_query() {
 			# Remove leading and trailing whitespace (including spaces and newlines) from the
 			# patterns. Replace any remaining newline characters within the patterns with the
 			# Unicode symbol for newline (␤) to maintain single-line processing. Note: Patterns with
-			# newlines will not match correctly in subsequent processing unless pcregrep is
-			# installed. In that case, the symbol will be replaced by a newline during matching.
+			# newlines will not match correctly in subsequent processing unless a tool with
+			# multiline support is installed. In that case, the symbol will be replaced by a newline
+			# during matching.
 			patterns: ([.value.text_matches[] | .. | .text? | select(type=="string") |
 				sub("^\\\s+"; "") | sub("\\\s+$"; "") | gsub("\n"; "\u2424")] as $patterns_array |
 				if $patterns_array == [] then "__NoPatternFound__" else $patterns_array | unique | join("\u001F") end)
@@ -705,17 +716,21 @@ EOF
 					IFS=$'\x1F' read -ra pattern_array <<<"$patterns"
 
 					grep_args=("--color=never" "--line-number" "--text")
-					if command -v pcregrep >/dev/null &&
+					if [[ -n $multiline_grep_executable ]] &&
 						command grep --quiet --max-count=1 --fixed-strings '␤' <<<"$patterns"; then
-						# The API sometimes returns a newline character as part of a pattern
-						# especially for texts where lots of Chinese characters are used, the
-						# character is replaced with '␤' inside the jq query, if such a pattern
-						# contains '␤' replace it with '\n' and try it with pcregrep multiline.
+						# The API sometimes returns a newline character as part of a pattern. The
+						# character is replaced with '␤' inside the jq query. If such a pattern
+						# contains '␤', replace it with '\n' and try using a tool that supports
+						# multiline, as this may be a bug in the API. These scenarios occur more
+						# frequently when the surrounding text contains many non-ASCII characters.
+
+						# TODO: Read up on how the GitHub Search API works and provide a better
+						# explanation of why some patterns contain newline characters.
 						for pattern in "${pattern_array[@]}"; do
 							sanitized_patterns=$(command sed 's/[][?*+.$^(){}]/\\&/g' <<<"$pattern")
 							grep_args+=("--regexp=${sanitized_patterns//␤/\\n}")
 						done
-						command pcregrep --multiline "${grep_args[@]}" -- \
+						command "$multiline_grep_executable" --multiline "${grep_args[@]}" -- \
 							"${store_file_contents}_${index}_fetched" 2>"${redirect_location}" |
 							command cut -d: -f1 >>"${store_file_contents}_${index}_line_numbers"
 					else
