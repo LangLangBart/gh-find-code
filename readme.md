@@ -211,3 +211,10 @@ pre-commit install --hook-type commit-msg --hook-type pre-commit
 # pre-commit installed at .git/hooks/commit-msg
 # pre-commit installed at .git/hooks/pre-commit
 ```
+
+---
+
+## Noteworthy Projects
+- [Official GitHub Search](https://github.com/search?type=code)
+- [grep.app | code search](https://grep.app/)
+- [k1LoW/gh-grep](https://github.com/k1LoW/gh-grep)

@@ -67,7 +67,7 @@ if ((GHFC_DEBUG_MODE)); then
 		PS4='+ $(zsh -c "print -Pr -- %D{%T:%3.}") [${BASH_SOURCE[0]:+${BASH_SOURCE[0]##*/}}:${FUNCNAME[0]:+${FUNCNAME[0]}():}${LINENO}]:  '
 	fi
 	set -o xtrace
-
+	: "$BASH" "$BASH_VERSION"
 	# Ensure xtrace is enabled in all child processes started by 'fzf'; 'errexit' is too strict
 	execution_shell="$(which bash) -o xtrace -o nounset -o pipefail -c"
 fi
@@ -95,8 +95,9 @@ error_handler() {
 			--highlight-line "$lineno" \
 			--language bash \
 			--line-range $((lineno - 3)):+7 \
+			--paging never \
 			--style numbers \
-			--terminal-width $((${COLUMNS:-$(tput cols)} - 4)) \
+			--terminal-width $((${COLUMNS:-$(command tput cols)} - 4)) \
 			--wrap never -- "${BASH_SOURCE[0]}" |
 			command sed 's/^/  /;4s/  />>/'
 	} >&2
@@ -142,12 +143,13 @@ gh_accept_raw="Accept: application/vnd.github.raw"
 gh_accept_text_match="Accept: application/vnd.github.text-match+json"
 gh_rest_api_version="X-GitHub-Api-Version:2022-11-28"
 
-# https://github.com/junegunn/fzf/releases/tag/0.52.0
-min_fzf_version="0.54.0"
-# a bug with 'gh-browse' with relative paths was fixed
+# This version fixed a bug where the item list didn't always update on the latest query version.
+# https://github.com/junegunn/fzf/releases/tag/v0.56.1
+min_fzf_version="0.56.1"
+# A bug with 'gh-browse' with relative paths was fixed
 # https://github.com/cli/cli/issues/7674
 min_gh_version="2.37.0"
-# requires 'urllib.parse'
+# Requires 'urllib.parse'
 # https://docs.python.org/3/library/urllib.parse.html
 min_python_version="3.0.0"
 python_executable=""
@@ -157,6 +159,7 @@ multiline_grep_executable=""
 # filename in child processes.
 
 # Default directory for trivial files
+# https://dotat.at/@/2024-10-22-tmp.html#mktemp-in-shell
 scratch_directory=$(command mktemp -d)
 store_bat_langs="${scratch_directory}/bat_langs"
 store_input_list="${scratch_directory}/input_list"
@@ -254,7 +257,7 @@ validate_environment() {
 		command awk -F ":" '{print $2}' | command tr ',' '\n' >"$store_bat_langs"
 
 	# Rule of Thumb: If it's listed under 'Utilities' in this link, don't check for it
-	# https://pubs.opengroup.org/onlinepubs/9699919799/utilities/contents.html
+	# https://pubs.opengroup.org/onlinepubs/9699919799.2016edition/utilities/contents.html
 	for value in column curl fzf gh; do
 		if ! command -v $value >/dev/null; then
 			die "'$value' was not found."
@@ -605,7 +608,7 @@ EOF
 				# the command outputs to stdout: https://tldp.org/LDP/abs/html/x9644.html#WAITHANG
 				(
 					# Run gh api commands with lower priority using nice
-					# https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap03.html#tag_03_244
+					# https://pubs.opengroup.org/onlinepubs/9699919799.2016edition/basedefs/V1_chap03.html#tag_03_244
 					if command nice -n 20 gh api "repos/${sanitized_owner_repo_name}/contents/${sanitized_file_path}" \
 						--cache "$gh_default_cache_time" \
 						--header "$gh_accept_raw" \
@@ -726,8 +729,9 @@ EOF
 
 						# TODO: Read up on how the GitHub Search API works and provide a better
 						# explanation of why some patterns contain newline characters.
+						# https://github.blog/engineering/the-technology-behind-githubs-new-code-search/
 						for pattern in "${pattern_array[@]}"; do
-							sanitized_patterns=$(command sed 's/[][?*+.$^(){}]/\\&/g' <<<"$pattern")
+							sanitized_patterns=$(command sed 's/[][?*+.$^(){}|]/\\&/g' <<<"$pattern")
 							grep_args+=("--regexp=${sanitized_patterns//␤/\\n}")
 						done
 						command "$multiline_grep_executable" --multiline "${grep_args[@]}" -- \
@@ -738,8 +742,8 @@ EOF
 							grep_args+=("--regexp=$pattern")
 						done
 
-						# Use the '--text' flag, as grep will simply print 'Binary file … matches' if
-						# the file contains binary characters. It won't even throw an error.
+						# Use the '--text' flag, as grep will simply print 'Binary file … matches'
+						# if the file contains binary characters. It won't even throw an error.
 						# https://unix.stackexchange.com/questions/19907
 						command grep --fixed-strings "${grep_args[@]}" -- \
 							"${store_file_contents}_${index}_fetched" 2>"${redirect_location}" |
