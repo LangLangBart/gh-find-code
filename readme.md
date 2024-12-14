@@ -46,19 +46,19 @@ gh find-code [Flags] [Search query]
 | `-l`  | limit the number of listed results (default 30, max 100) |
 | `-h`  | help                                                     |
 
-| Key Bindings fzf                | Description                          |
-| ------------------------------- | ------------------------------------ |
-| <kbd>?</kbd>                    | toggle help                          |
-| <kbd>ctrl</kbd><kbd>b</kbd>     | open the file in the browser         |
-| <kbd>ctrl</kbd><kbd>o</kbd>     | open the file content in the editor  |
-| <kbd>ctrl</kbd><kbd>p</kbd>     | replace query with "repo:owner/name" |
-| <kbd>ctrl</kbd><kbd>r</kbd>     | reload with up to 100 results        |
-| <kbd>ctrl</kbd><kbd>space</kbd> | toggle command history               |
-| <kbd>ctrl</kbd><kbd>t</kbd>     | toggle between Code and Fuzzy search |
-| <kbd>ctrl</kbd><kbd>x</kbd>     | open the search query in the browser |
-| <kbd>enter</kbd>                | open the file in the pager           |
-| <kbd>tab</kbd>                  | toggle the file preview              |
-| <kbd>esc</kbd>                  | quit                                 |
+| Key Bindings fzf                | Description                              |
+| ------------------------------- | ---------------------------------------- |
+| <kbd>?</kbd>                    | toggle help                              |
+| <kbd>ctrl</kbd><kbd>b</kbd>     | open the file in the browser             |
+| <kbd>ctrl</kbd><kbd>o</kbd>     | open the file content in the editor      |
+| <kbd>ctrl</kbd><kbd>p</kbd>     | prepend "repo:{owner/name}" to the query |
+| <kbd>ctrl</kbd><kbd>r</kbd>     | reload with up to 100 results            |
+| <kbd>ctrl</kbd><kbd>space</kbd> | toggle command history                   |
+| <kbd>ctrl</kbd><kbd>t</kbd>     | toggle between Code and Fuzzy search     |
+| <kbd>ctrl</kbd><kbd>x</kbd>     | open the search query in the browser     |
+| <kbd>enter</kbd>                | open the file in the pager               |
+| <kbd>tab</kbd>                  | toggle the file preview                  |
+| <kbd>esc</kbd>                  | quit                                     |
 
 ---
 
@@ -114,17 +114,17 @@ GHFC_FILTER_BY_REPO_KEY="ctrl-u" gh find-code
 > man fzf | less --pattern "AVAILABLE KEYS"
 > ```
 
-| Variable                       | Purpose                              | Default      |
-| ------------------------------ | ------------------------------------ | ------------ |
-| `GHFC_OPEN_BROWSER_KEY`        | open the file in the browser         | `ctrl-b`     |
-| `GHFC_OPEN_EDITOR_KEY`         | open the file content in the editor  | `ctrl-o`     |
-| `GHFC_FILTER_BY_REPO_KEY`      | replace query with "repo:owner/name" | `ctrl-p`     |
-| `GHFC_RELOAD_KEY`              | reload with up to 100 results        | `ctrl-r`     |
-| `GHFC_TOGGLE_HISTORY_KEY`      | toggle command history               | `ctrl-space` |
-| `GHFC_TOGGLE_FUZZY_SEARCH_KEY` | toggle between Code and Fuzzy search | `ctrl-t`     |
-| `GHFC_OPEN_BROWSER_QUERY_KEY`  | open the search query in the browser | `ctrl-x`     |
-| `GHFC_VIEW_CONTENTS_KEY`       | open the file in the pager           | `enter`      |
-| `GHFC_TOGGLE_PREVIEW_KEY`      | toggle the file preview              | `tab`        |
+| Variable                       | Purpose                                  | Default      |
+| ------------------------------ | ---------------------------------------- | ------------ |
+| `GHFC_OPEN_BROWSER_KEY`        | open the file in the browser             | `ctrl-b`     |
+| `GHFC_OPEN_EDITOR_KEY`         | open the file content in the editor      | `ctrl-o`     |
+| `GHFC_FILTER_BY_REPO_KEY`      | prepend "repo:{owner/name}" to the query | `ctrl-p`     |
+| `GHFC_RELOAD_KEY`              | reload with up to 100 results            | `ctrl-r`     |
+| `GHFC_TOGGLE_HISTORY_KEY`      | toggle command history                   | `ctrl-space` |
+| `GHFC_TOGGLE_FUZZY_SEARCH_KEY` | toggle between Code and Fuzzy search     | `ctrl-t`     |
+| `GHFC_OPEN_BROWSER_QUERY_KEY`  | open the search query in the browser     | `ctrl-x`     |
+| `GHFC_VIEW_CONTENTS_KEY`       | open the file in the pager               | `enter`      |
+| `GHFC_TOGGLE_PREVIEW_KEY`      | toggle the file preview                  | `tab`        |
 
 ---
 

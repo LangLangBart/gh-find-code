@@ -366,7 +366,7 @@ ${WHITE_BOLD}Hotkeys${COLOR_RESET}
   ${GREEN_NORMAL}?         ${COLOR_RESET}  toggle help
   ${GREEN_NORMAL}${GHFC_OPEN_BROWSER_KEY}    ${COLOR_RESET}  open the file in the browser
   ${GREEN_NORMAL}${GHFC_OPEN_EDITOR_KEY}    ${COLOR_RESET}  open the file content in the editor
-  ${GREEN_NORMAL}${GHFC_FILTER_BY_REPO_KEY}    ${COLOR_RESET}  replace query with "repo:owner/name"
+  ${GREEN_NORMAL}${GHFC_FILTER_BY_REPO_KEY}    ${COLOR_RESET}  prepend "repo:{owner/name}" to the query
   ${GREEN_NORMAL}${GHFC_RELOAD_KEY}    ${COLOR_RESET}  reload with up to 100 results
   ${GREEN_NORMAL}${GHFC_TOGGLE_HISTORY_KEY}${COLOR_RESET}  toggle command history
   ${GREEN_NORMAL}${GHFC_TOGGLE_FUZZY_SEARCH_KEY}    ${COLOR_RESET}  toggle between Code and Fuzzy search
@@ -1015,7 +1015,7 @@ main() {
 	# solution is needed to address this complexity.
 	fzf_basic_style \
 		--bind "change:first+reload:command sleep 0.5; gh_query" \
-		--bind "resize:transform:preview_transformer" \
+		--bind "resize:transform(preview_transformer)+refresh-preview" \
 		--bind "start:reload:gh_query" \
 		--bind "?:transform:[[ ! \$FZF_PROMPT =~ \"$fzf_prompt_helpABC\" ]] &&
 		echo 'change-prompt($fzf_prompt_helpABC)+change-preview-window(~0:+1)+change-preview:print_help_text' ||
@@ -1024,7 +1024,7 @@ main() {
 		--bind "${GHFC_OPEN_EDITOR_KEY}:transform:[[ \$FZF_MATCH_COUNT -ge 1 && \${EDITOR##*/} =~ ^(code|codium)$ ]] &&
 		echo 'execute-silent:open_in_editor=true \view_contents \{}' ||
 		echo 'execute:open_in_editor=true \view_contents \{}'" \
-		--bind "${GHFC_FILTER_BY_REPO_KEY}:transform-query:echo repo:{4}" \
+		--bind "${GHFC_FILTER_BY_REPO_KEY}:transform-query:echo repo:{4} \$FZF_QUERY" \
 		--bind "${GHFC_RELOAD_KEY}:reload:gh_user_limit=100 gh_query" \
 		--bind "${GHFC_TOGGLE_HISTORY_KEY}:execute:view_history_commands" \
 		--bind "${GHFC_TOGGLE_FUZZY_SEARCH_KEY}:transform:[[ ! \$FZF_PROMPT == \"$fzf_prompt_fuzzyAB\" ]] &&
