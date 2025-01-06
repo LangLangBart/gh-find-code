@@ -154,7 +154,7 @@ BAT_THEME="Dracula" gh find-code
 ### Editor
 - The extension uses the `EDITOR` environment variable to determine in which
   editor the selected file will be opened, works with `nano`, `nvim/vi/vim`,
-  and `VSCode/VSCodium`.
+  and `VSCode` and some of its derivatives (e.g. `VSCodium`).
 - The code from opened files is stored temporarily and is removed when the
   program ends.
 
