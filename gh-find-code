@@ -64,7 +64,7 @@ if ((GHFC_DEBUG_MODE)); then
 	PS4='+ $(date +%H:%M:%S:%3N) [${BASH_SOURCE[0]:+${BASH_SOURCE[0]##*/}}:${FUNCNAME[0]:+${FUNCNAME[0]}():}${LINENO}]:  '
 	# Use zsh for milliseconds in prompt; macOS 'date' lacks '%3N' support
 	if command -v zsh &>/dev/null && [[ "$(date +%3N 2>/dev/null)" == "3N" ]]; then
-		PS4='+ $(zsh -c "print -Pr -- %D{%T:%3.}") [${BASH_SOURCE[0]:+${BASH_SOURCE[0]##*/}}:${FUNCNAME[0]:+${FUNCNAME[0]}():}${LINENO}]:  '
+		PS4='+ $(zsh -fc "print -Pr -- %D{%T:%3.}") [${BASH_SOURCE[0]:+${BASH_SOURCE[0]##*/}}:${FUNCNAME[0]:+${FUNCNAME[0]}():}${LINENO}]:  '
 	fi
 	set -o xtrace
 	: "$BASH" "$BASH_VERSION"
