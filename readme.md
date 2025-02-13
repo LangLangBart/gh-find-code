@@ -46,19 +46,33 @@ gh find-code [Flags] [Search query]
 | `-l`  | limit the number of listed results (default 30, max 100) |
 | `-h`  | help                                                     |
 
-| Key Bindings fzf                | Description                              |
-| ------------------------------- | ---------------------------------------- |
-| <kbd>?</kbd>                    | toggle help                              |
-| <kbd>ctrl</kbd><kbd>b</kbd>     | open the file in the browser             |
-| <kbd>ctrl</kbd><kbd>o</kbd>     | open the file content in the editor      |
-| <kbd>ctrl</kbd><kbd>p</kbd>     | prepend "repo:{owner/name}" to the query |
-| <kbd>ctrl</kbd><kbd>r</kbd>     | reload with up to 100 results            |
-| <kbd>ctrl</kbd><kbd>space</kbd> | toggle command history                   |
-| <kbd>ctrl</kbd><kbd>t</kbd>     | toggle between Code and Fuzzy search     |
-| <kbd>ctrl</kbd><kbd>x</kbd>     | open the search query in the browser     |
-| <kbd>enter</kbd>                | open the file in the pager               |
-| <kbd>tab</kbd>                  | toggle the file preview                  |
-| <kbd>esc</kbd>                  | quit                                     |
+| Key Bindings fzf | Purpose                                  | Keybind Environment Variable   |
+| ---------------- | ---------------------------------------- | ------------------------------ |
+| `?`              | toggle help                              |                                |
+| `ctrl-b`         | open the file in the browser             | `GHFC_OPEN_BROWSER_KEY`        |
+| `ctrl-o`         | open the file content in the editor      | `GHFC_OPEN_EDITOR_KEY`         |
+| `ctrl-p`         | prepend "repo:{owner/name}" to the query | `GHFC_FILTER_BY_REPO_KEY`      |
+| `ctrl-r`         | reload with up to 100 results            | `GHFC_RELOAD_KEY`              |
+| `ctrl-space`     | toggle command history                   | `GHFC_TOGGLE_HISTORY_KEY`      |
+| `ctrl-t`         | toggle between Code and Fuzzy search     | `GHFC_TOGGLE_FUZZY_SEARCH_KEY` |
+| `ctrl-x`         | open the search query in the browser     | `GHFC_OPEN_BROWSER_QUERY_KEY`  |
+| `enter`          | open the file in the pager               | `GHFC_VIEW_CONTENTS_KEY`       |
+| `tab`            | toggle the file preview                  | `GHFC_TOGGLE_PREVIEW_KEY`      |
+| `esc`            | quit                                     |                                |
+
+To avoid interfering with a user's typical keybinds, key bindings can be customized by setting the
+corresponding environment variables. For example, to change the key binding for opening a file in
+the browser from `ctrl-b` to `ctrl-k`:
+
+```sh
+GHFC_OPEN_BROWSER_KEY="ctrl-k" gh find-code
+```
+
+> [!NOTE]
+> The assigned key must be a valid key listed under `AVAILABLE KEYS` in the `fzf` man page.
+> ```sh
+> man fzf | less --pattern "AVAILABLE KEYS"
+> ```
 
 ---
 
@@ -100,31 +114,6 @@ gh ext remove LangLangBart/gh-find-code
 | `GHFC_DEBUG_MODE`    | Enable debug mode             | `0` (Disabled)                                                   |
 | `GHFC_HISTORY_FILE`  | Custom location               | `${XDG_STATE_HOME:-$HOME/.local/state}/gh-find-code/history.txt` |
 | `GHFC_HISTORY_LIMIT` | Max number of stored commands | `500`                                                            |
-
-To avoid interfering with a user's typical keybinds, you can overwrite the following keybinds to
-another key. For example, change `ctrl-p` to `ctrl-u`.
-
-```sh
-GHFC_FILTER_BY_REPO_KEY="ctrl-u" gh find-code
-```
-
-> [!NOTE]
-> The assigned key must be a valid key listed under `AVAILABLE KEYS` in the `fzf` man page.
-> ```sh
-> man fzf | less --pattern "AVAILABLE KEYS"
-> ```
-
-| Variable                       | Purpose                                  | Default      |
-| ------------------------------ | ---------------------------------------- | ------------ |
-| `GHFC_OPEN_BROWSER_KEY`        | open the file in the browser             | `ctrl-b`     |
-| `GHFC_OPEN_EDITOR_KEY`         | open the file content in the editor      | `ctrl-o`     |
-| `GHFC_FILTER_BY_REPO_KEY`      | prepend "repo:{owner/name}" to the query | `ctrl-p`     |
-| `GHFC_RELOAD_KEY`              | reload with up to 100 results            | `ctrl-r`     |
-| `GHFC_TOGGLE_HISTORY_KEY`      | toggle command history                   | `ctrl-space` |
-| `GHFC_TOGGLE_FUZZY_SEARCH_KEY` | toggle between Code and Fuzzy search     | `ctrl-t`     |
-| `GHFC_OPEN_BROWSER_QUERY_KEY`  | open the search query in the browser     | `ctrl-x`     |
-| `GHFC_VIEW_CONTENTS_KEY`       | open the file in the pager               | `enter`      |
-| `GHFC_TOGGLE_PREVIEW_KEY`      | toggle the file preview                  | `tab`        |
 
 ---
 
@@ -196,6 +185,48 @@ GHFC_HISTORY_LIMIT="1000" gh find-code
 
 ---
 
+## 🤔 Pitfall
+
+### Incorrect Line Numbers
+
+The API may return irrelevant `text` matches, which can lead to incorrect line numbers in the entire
+document.
+
+I occasionally encounter this issue in `readme.md` files when the fragment contains Asian characters
+prior to the desired search keyword. For example, when searching for `commander.js` in the
+`nieweidong/fetool` repository, the API may return text matches that are all 12 characters long, but
+there seems to be a bug in the GitHub code as it does not correctly count when the search keyword
+appears in the fragment. Instead of matching `commander.js`, it returns `er](https://`.
+
+- Ref: [GitHub Docs - Text Match Metadata](https://docs.github.com/en/rest/search/search#text-match-metadata)
+
+```sh
+command gh api search/code --method GET --cache 1h --field per_page=1 \
+  --header 'Accept: application/vnd.github.text-match+json' \
+  --raw-field 'q=repo:nieweidong/fetool commander.js' \
+  --jq '.items[].text_matches[].matches | first | {text}'
+```
+```json
+{
+  "text": "er](https://"
+}
+```
+
+Here is an example of a proper `text` response from the search API:
+```sh
+command gh api search/code --method GET --cache 1h --field per_page=1 \
+  --header 'Accept: application/vnd.github.text-match+json' \
+  --raw-field 'q=repo:calvinmetcalf/ltcdr commander.js' \
+  --jq '.items[].text_matches[].matches | first | {text}'
+```
+```json
+{
+  "text": "commander.js"
+}
+```
+
+---
+
 ## 💪 Contributing
 
 > [!NOTE]
@@ -214,7 +245,7 @@ pre-commit install --hook-type commit-msg --hook-type pre-commit
 
 ---
 
-## Noteworthy Projects
+## ⭐ Noteworthy Projects
 - [Official GitHub Search](https://github.com/search?type=code)
 - [grep.app | code search](https://grep.app/)
 - [k1LoW/gh-grep](https://github.com/k1LoW/gh-grep)

@@ -46,7 +46,7 @@ repos:
         args: [--ignore, body-is-missing, --msg-filename]
         stages: [commit-msg]
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.1.0
+    rev: v4.2.1
     hooks:
       - id: commitizen
         name: check commit message structure
