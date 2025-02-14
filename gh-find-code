@@ -751,8 +751,7 @@ EOF
 							grep_args+=("--regexp=${sanitized_patterns//␤/\\n}")
 						done
 						command "$multiline_grep_executable" --multiline "${grep_args[@]}" -- \
-							"${store_file_contents}_${index}_fetched" 2>"${redirect_location}" |
-							command cut -d: -f1 >>"${store_file_contents}_${index}_line_numbers"
+							"${store_file_contents}_${index}_fetched" 2>"${redirect_location}"
 					else
 						for pattern in "${pattern_array[@]}"; do
 							grep_args+=("--regexp=$pattern")
@@ -762,9 +761,15 @@ EOF
 						# if the file contains binary characters. It won't even throw an error.
 						# https://unix.stackexchange.com/questions/19907
 						command grep --fixed-strings "${grep_args[@]}" -- \
-							"${store_file_contents}_${index}_fetched" 2>"${redirect_location}" |
-							command cut -d: -f1 >>"${store_file_contents}_${index}_line_numbers"
-					fi
+							"${store_file_contents}_${index}_fetched" 2>"${redirect_location}"
+					fi |
+						while IFS= read -r line; do
+							# Validate that the line number is a positive integer followed by a colon
+							if [[ $line =~ ^([0-9]+): ]]; then
+								echo "${BASH_REMATCH[1]}" >>"${store_file_contents}_${index}_line_numbers"
+							fi
+						done
+
 					# Save debug info only if an error is encountered
 					if ((GHFC_DEBUG_MODE)) && [[ -s ${store_grep_extended_debug}_${index} ]]; then
 						{
@@ -862,14 +867,12 @@ view_contents() {
 	fi
 	line_numbers=()
 	while IFS=$'\n' read -r matched_line; do
-		if [[ $matched_line =~ ^[0-9]+ ]]; then
-			line_numbers+=("$matched_line")
-			# NOTE: The '--line-range' in 'bat' overrides preceding flags. However, the
-			# '-H, --highlight-line' attribute can be utilized multiple times.
-			# https://github.com/sharkdp/bat/pull/162#pullrequestreview-125072252
-			# use the short form to avoid making the command unnecessarily long
-			bat_args+=("-H=${matched_line}")
-		fi
+		line_numbers+=("$matched_line")
+		# NOTE: The '--line-range' in 'bat' overrides preceding flags. However, the
+		# '-H, --highlight-line' attribute can be utilized multiple times.
+		# https://github.com/sharkdp/bat/pull/162#pullrequestreview-125072252
+		# use the short form to avoid making the command unnecessarily long
+		bat_args+=("-H=${matched_line}")
 	done <"${store_file_contents}_${index}_line_numbers"
 
 	file_name=$(command basename "$file_path")
