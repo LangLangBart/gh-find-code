@@ -5,6 +5,7 @@ set -o allexport -o errexit -o errtrace -o nounset -o pipefail
 # TODO: lookout for Github adding regex support to the REST or GraphQL API
 # TODO: add tests - https://github.com/dodie/testing-in-bash
 # TODO: replace python with a more typical bash solution
+# TODO: add a section explaining how it works similar to https://github.com/newren/git-filter-repo
 
 ###############################################################################
 # Environment Variables
@@ -582,6 +583,9 @@ ADVICE:
 1. If you are using an escape sequences inside double quotes, escape them. For example:
    - Instead of: "Tab \t"
    - Use: "Tab \\\t"
+2. Use double quotes for multi-word search terms:
+   - Instead of: 'in progress'
+   - Use: "in progress"
 EOF
 		fi
 		if [[ ! -s $store_gh_search_error ]]; then
@@ -1073,4 +1077,5 @@ main() {
 # Script Execution
 ###############################################################################
 
+# TODO: check what cool new things fzf added since 0.56.1
 main "$@"

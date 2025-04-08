@@ -6,13 +6,13 @@ repos:
     hooks:
       - id: end-of-file-fixer
       - id: trailing-whitespace
-  - repo: https://github.com/crate-ci/typos
-    rev: v1.28.3
+  - repo: https://github.com/adhtruong/mirrors-typos
+    rev: v1.31.1
     hooks:
       - id: typos
         args: [--format, brief, --write-changes, --force-exclude]
   - repo: https://github.com/tcort/markdown-link-check
-    rev: v3.13.6
+    rev: v3.13.7
     hooks:
       - id: markdown-link-check
         name: markdown link check
@@ -23,7 +23,7 @@ repos:
       - id: shellcheck
         args: [--external-source, --norc]
   - repo: https://github.com/scop/pre-commit-shfmt
-    rev: v3.10.0-2
+    rev: v3.11.0-1
     hooks:
       - id: shfmt
         args: [--simplify, --indent, '0', --case-indent, --write]
@@ -31,8 +31,8 @@ repos:
     rev: 1.17.0
     hooks:
       - id: yamlfix
-  - repo: https://github.com/crate-ci/typos
-    rev: v1.28.3
+  - repo: https://github.com/adhtruong/mirrors-typos
+    rev: v1.31.1
     hooks:
       - id: typos
         name: detect typos in commit message
@@ -46,7 +46,7 @@ repos:
         args: [--ignore, body-is-missing, --msg-filename]
         stages: [commit-msg]
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.2.1
+    rev: v4.5.0
     hooks:
       - id: commitizen
         name: check commit message structure
