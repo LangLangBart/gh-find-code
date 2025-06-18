@@ -249,3 +249,4 @@ pre-commit install --hook-type commit-msg --hook-type pre-commit
 - [Official GitHub Search](https://github.com/search?type=code)
 - [grep.app | code search](https://grep.app/)
 - [k1LoW/gh-grep](https://github.com/k1LoW/gh-grep)
+- [johnlindquist/ghx](https://github.com/johnlindquist/ghx)
