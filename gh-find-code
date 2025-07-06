@@ -564,7 +564,7 @@ gh_query() {
 			# multiline support is installed. In that case, the symbol will be replaced by a newline
 			# during matching.
 			patterns: ([.value.text_matches[] | .. | .text? | select(type=="string") |
-				sub("^\\\s+"; "") | sub("\\\s+$"; "") | gsub("\n"; "\u2424")] as $patterns_array |
+				sub("^\\\s+"; "") | sub("\\\s+$"; "") | select(. != "") | gsub("\n"; "\u2424")] as $patterns_array |
 				if $patterns_array == [] then "__NoPatternFound__" else $patterns_array | unique | join("\u001F") end)
 
 		# Separating the fields with the Record Separator (RS). @tsv is not suitable because it
