@@ -70,6 +70,7 @@ GHFC_OPEN_BROWSER_KEY="ctrl-k" gh find-code
 
 > [!NOTE]
 > The assigned key must be a valid key listed under `AVAILABLE KEYS` in the `fzf` man page.
+>
 > ```sh
 > man fzf | less --pattern "AVAILABLE KEYS"
 > ```
@@ -77,12 +78,15 @@ GHFC_OPEN_BROWSER_KEY="ctrl-k" gh find-code
 ---
 
 ## 💻 Requirements and Installation
+
+- [bash](https://www.gnu.org/software/bash/) - shell that runs the script
 - [bat](https://github.com/sharkdp/bat#installation) - preview looks better
 - [curl](https://github.com/curl/curl) - sending updates to `fzf`
 - [Fuzzy Finder (fzf)](https://github.com/junegunn/fzf#installation) - allow for
   interaction with listed data
 - [GitHub command line tool (gh)](https://github.com/cli/cli#installation) - get
   the data from Github
+- [GNU grep](https://www.gnu.org/software/grep/) - searches through text using regular expressions
 - [Python](https://www.python.org) - used to parse and open custom URLs on
   different operating systems
 
@@ -93,6 +97,16 @@ gh ext install LangLangBart/gh-find-code
 gh ext upgrade LangLangBart/gh-find-code
 # uninstall
 gh ext remove LangLangBart/gh-find-code
+```
+
+Try it in Docker (requires a `GH_TOKEN`).
+
+```bash
+docker run --rm --interactive --tty -e GH_TOKEN=<YOUR TOKEN> -e TERM alpine sh -uec '
+# On Alpine, the "util-linux" package is needed for the "column" command.
+apk add util-linux bash bat curl fzf github-cli grep python3
+gh ext install LangLangBart/gh-find-code
+gh find-code'
 ```
 
 ---
@@ -120,6 +134,7 @@ gh ext remove LangLangBart/gh-find-code
 ## 💁 TIPS
 
 ### Alias
+
 - The name `gh find-code` was chosen for its descriptive nature. For frequent
   use, consider setting up an alias.
 
@@ -131,7 +146,9 @@ alias ghfc='BAT_THEME="Dracula" EDITOR="vim" gh find-code'
 ```
 
 ### Bat
+
 - Set `BAT_THEME` to change the preview color scheme:
+
 ```sh
 # To view all default themes
 bat --list-themes --color=never
@@ -141,6 +158,7 @@ BAT_THEME="Dracula" gh find-code
 ```
 
 ### Editor
+
 - The extension uses the `EDITOR` environment variable to determine in which
   editor the selected file will be opened, works with `nano`, `nvim/vi/vim`,
   and `VSCode` and some of its derivatives (e.g. `VSCodium`).
@@ -153,6 +171,7 @@ EDITOR="code" gh find-code
 ```
 
 ### Fuzzy Finder (fzf)
+
 - Scroll the preview in larger steps by adding this snippet to your shell setup.
 
 ```sh
@@ -168,6 +187,7 @@ export FZF_DEFAULT_OPTS="
 - **NOTE:** [How to use ALT commands in a terminal on macOS?](https://superuser.com/questions/496090/how-to-use-alt-commands-in-a-terminal-on-os-x)
 
 ### History
+
 - The history file stores successfully completed unique commands.
 - Customize history file location and limit:
 
@@ -179,6 +199,7 @@ GHFC_HISTORY_LIMIT="1000" gh find-code
 ```
 
 ### Pattern Matching
+
 - In rare cases, when the API returns patterns with newline characters, `pcre2grep`, `pcregrep`, or
   `rg` will be used to find line numbers if any of them is installed. Otherwise, `grep` will be used
   by default, which will not match patterns containing newlines.
@@ -206,6 +227,7 @@ command gh api search/code --method GET --cache 1h --field per_page=1 \
   --raw-field 'q=repo:nieweidong/fetool commander.js' \
   --jq '.items[].text_matches[].matches | first | {text}'
 ```
+
 ```json
 {
   "text": "er](https://"
@@ -213,12 +235,14 @@ command gh api search/code --method GET --cache 1h --field per_page=1 \
 ```
 
 Here is an example of a proper `text` response from the search API:
+
 ```sh
 command gh api search/code --method GET --cache 1h --field per_page=1 \
   --header 'Accept: application/vnd.github.text-match+json' \
   --raw-field 'q=repo:calvinmetcalf/ltcdr commander.js' \
   --jq '.items[].text_matches[].matches | first | {text}'
 ```
+
 ```json
 {
   "text": "commander.js"
@@ -246,6 +270,7 @@ pre-commit install --hook-type commit-msg --hook-type pre-commit
 ---
 
 ## ⭐ Noteworthy Projects
+
 - [Official GitHub Search](https://github.com/search?type=code)
 - [grep.app | code search](https://grep.app/)
 - [k1LoW/gh-grep](https://github.com/k1LoW/gh-grep)
