@@ -70,7 +70,7 @@ if ((GHFC_DEBUG_MODE)); then
 	set -o xtrace
 	: "$BASH" "$BASH_VERSION"
 	# Ensure xtrace is enabled in all child processes started by 'fzf'; 'errexit' is too strict
-	execution_shell="$(which bash) -o xtrace -o nounset -o pipefail -c"
+	execution_shell="${BASH} -o xtrace -o nounset -o pipefail -c"
 fi
 
 bat_executable=""
@@ -958,7 +958,7 @@ fzf_basic_style() {
 		--scrollbar '│▐' \
 		--separator '' \
 		--unicode \
-		--with-shell "${execution_shell:-"$(which bash) -c"}" \
+		--with-shell "${execution_shell:-"${BASH} -c"}" \
 		"$@"
 }
 
@@ -970,7 +970,10 @@ view_history_commands() {
 	fi
 	echo "hold" >"$store_hold_gh_query_loop"
 	# The additional pipe for 'bat' is used to improve text visibility.
-	history_command=$'command sed \'1!G;h;$!d\' "$GHFC_HISTORY_FILE" | command nl -s "\t" -n ln -w 3 | command '$bat_executable' --plain --color=always'
+	read -r -d '' history_command <<'EOF'
+command sed '1!G;h;$!d' "${GHFC_HISTORY_FILE}" | awk '{printf "%-3d   %s\n", NR, $0}' | command "${bat_executable}" --plain --color=always
+EOF
+
 	# The Ctrl+C keybind instantly closes 'fzf' by terminating both instances.
 	if selection=$(
 		fzf_basic_style \
