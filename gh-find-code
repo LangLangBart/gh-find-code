@@ -473,12 +473,29 @@ show_api_limits() {
 		--header "$gh_accept_json" \
 		--header "$gh_rest_api_version" \
 		--jq \
-		'(["List API Limits", "Used/Limit", "Resetting"] | (., map(length*"¯"))),
+		$'def colors:
+		{
+			"green": "\u001b[32m",
+			"red": "\u001b[31m",
+			"reset": "\u001b[0m"
+		};
+		def colored(text; color):
+			colors[color] + text + colors.reset;
+		(["List API Limits", "Used/Limit", "Resetting"] | (., map(length*"¯"))),
 		(.resources | to_entries[] | {
 			name: .key,
 			used_limit: "\(.value.used)/\(.value.limit)",
-			reset: "\(.value.reset | strflocaltime("%H:%M:%S %Z") ) (\((.value.reset - now) | (./60|ceil))m)"
-		}  | [.name, .used_limit, .reset]) | @tsv' |
+			timestamp: .value.reset | strflocaltime("%H:%M:%S %Z"),
+			# To preserve columnization, only the last part of the line is colored.
+			reset: colored(
+				(.value.reset - now) as $sec |
+				if $sec < 59 then
+					$sec | floor | tostring + "s"
+				else
+					($sec / 60) | ceil | tostring + "m"
+				end; if (.value.remaining == 0) then "red" else "" end
+			)
+		} | [.name, .used_limit, "\(.timestamp) \(.reset)"]) | @tsv' |
 		command column -ts $'\t' |
 		command "$bat_executable" --color=always --plain --language COMMIT_EDITMSG
 }
