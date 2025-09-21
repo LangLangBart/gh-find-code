@@ -1,12 +1,13 @@
-<div align="center">
+<h1 align="center">gh find-code</h1>
 
-# gh find-code
+<div align="center">
 
 This extension is a command-line tool that uses the GitHub REST API and `fzf` to
 interactively search and preview code.
 
 <img
 src="https://github.com/LangLangBart/gh-find-code/assets/92653266/144c966d-a5ac-4715-a7b3-7e6684bcf3d0"
+alt="image.png" style="max-width: 100%; height: auto" loading="lazy"
 width="800">
 
 </div>
@@ -79,8 +80,9 @@ GHFC_OPEN_BROWSER_KEY="ctrl-k" gh find-code
 
 ## 💻 Requirements and Installation
 
-- [bash](https://www.gnu.org/software/bash/) - shell that runs the script
+- [bash 4.1+](https://www.gnu.org/software/bash/) - shell that runs the script
 - [bat](https://github.com/sharkdp/bat#installation) - preview looks better
+- [column](https://man7.org/linux/man-pages/man1/column.1.html) - format output
 - [curl](https://github.com/curl/curl) - sending updates to `fzf`
 - [Fuzzy Finder (fzf)](https://github.com/junegunn/fzf#installation) - allow for
   interaction with listed data
@@ -113,7 +115,7 @@ gh find-code'
 
 ## 🌐 Environment Variables
 
-**Table 1: Environment Variables Utilized**
+### Table 1: Environment Variables Utilized
 
 | Variable    | Purpose                                | Default            |
 | ----------- | -------------------------------------- | ------------------ |
@@ -121,7 +123,7 @@ gh find-code'
 | `EDITOR`    | Editor to open selected files.         | `vim`              |
 | `PAGER`     | Pager for file viewing.                | `less`             |
 
-**Table 2: Environment Variables Defined and Utilized**
+### Table 2: Environment Variables Defined and Utilized
 
 | Variable             | Purpose                       | Default                                                          |
 | -------------------- | ----------------------------- | ---------------------------------------------------------------- |
