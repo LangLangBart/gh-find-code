@@ -39,6 +39,8 @@ gh find-code [Flags] [Search query]
 > [!IMPORTANT]
 > The search syntax differs between the WebUI and the REST API, with the latter
 > not supporting regex.
+>
+> Ref: [Regex in Search API · community · Discussion #112338 · GitHub](https://github.com/orgs/community/discussions/112338)
 
 ---
 
