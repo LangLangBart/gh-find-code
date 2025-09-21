@@ -488,8 +488,9 @@ show_api_limits() {
 			timestamp: .value.reset | strflocaltime("%H:%M:%S %Z"),
 			# To preserve columnization, only the last part of the line is colored.
 			reset: colored(
-				(.value.reset - now) as $sec |
-				if $sec < 59 then
+				# Add +2s buffer for latency, avoiding the "-1s" near reset
+				(.value.reset - now + 2) as $sec |
+				if $sec < 60 then
 					$sec | floor | tostring + "s"
 				else
 					($sec / 60) | ceil | tostring + "m"
