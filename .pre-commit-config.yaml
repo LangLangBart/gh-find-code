@@ -2,12 +2,12 @@
 default_stages: [pre-commit]
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: end-of-file-fixer
       - id: trailing-whitespace
   - repo: https://github.com/adhtruong/mirrors-typos
-    rev: v1.34.0
+    rev: v1.36.2
     hooks:
       - id: typos
         args: [--format, brief, --write-changes, --force-exclude]
@@ -18,7 +18,7 @@ repos:
         name: markdown link check
         args: [--quiet]
   - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.10.0.1
+    rev: v0.11.0.1
     hooks:
       - id: shellcheck
         args: [--external-source, --norc]
@@ -28,11 +28,11 @@ repos:
       - id: shfmt
         args: [--simplify, --indent, '0', --case-indent, --write]
   - repo: https://github.com/lyz-code/yamlfix
-    rev: 1.17.0
+    rev: 1.18.0
     hooks:
       - id: yamlfix
   - repo: https://github.com/adhtruong/mirrors-typos
-    rev: v1.34.0
+    rev: v1.36.2
     hooks:
       - id: typos
         name: detect typos in commit message
@@ -46,7 +46,7 @@ repos:
         args: [--ignore, body-is-missing, --msg-filename]
         stages: [commit-msg]
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.8.3
+    rev: v4.9.1
     hooks:
       - id: commitizen
         name: check commit message structure
