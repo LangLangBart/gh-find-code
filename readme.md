@@ -7,7 +7,7 @@ interactively search and preview code.
 
 <img
 src="https://github.com/LangLangBart/gh-find-code/assets/92653266/144c966d-a5ac-4715-a7b3-7e6684bcf3d0"
-alt="image.png" style="max-width: 100%; height: auto" loading="lazy"
+alt="image.png" style="max-width: 100%; height: auto"
 width="800">
 
 </div>
@@ -17,24 +17,29 @@ width="800">
 ## 👨‍💻 Usage
 
 ```sh
-gh find-code [Flags] [Search query]
+gh find-code [Flags] [Search Query]
 ```
+
+| Flags | Description                                              |
+| ----- | -------------------------------------------------------- |
+| `-l`  | limit the number of listed results (default 30, max 100) |
+| `-h`  | help                                                     |
 
 - Use valid qualifiers to refine the results of your search.
   - [GitHub Docs - Searching Code](https://docs.github.com/en/search-github/searching-on-github/searching-code)
   - [GitHub Docs - Understanding the search syntax](https://docs.github.com/en/search-github/getting-started-with-searching-on-github/understanding-the-search-syntax)
 
-| Qualifier                      | Search query example             | Description                                             |
-| ------------------------------ | -------------------------------- | ------------------------------------------------------- |
-| `in`                           | `'in:path zsh'`                  | matches code where `zsh` appears in the file path       |
-| `user`                         | `'user:ashtom Development'`      | files with the word `Development` only from `@ashtom`   |
-| `org`                          | `'org:cli searcher'`             | searches all code in the `cli` org for `searcher`       |
-| `repo`                         | `'repo:junegunn/fzf FZF_PORT'`   | searches only in the `junegunn/fzf` repo for `FZF_PORT` |
-| `path`                         | `'path:.github shfmt'`           | files with the word `shfmt` in the `.github` path       |
-| `language`                     | `'language:js "new Proxy"'`      | search for the string `new Proxy` in JavaScript files   |
-| `size` <br> (>, >=, <, and <=) | `'size:<100 _gnu_generic'`       | files smaller than 100 bytes with `_gnu_generic`        |
-| `filename`                     | `'filename:.zshrc GOCACHE'`      | search in all filenames `.zshrc` for `GOCACHE`          |
-| `extension`                    | `'extension:rs "Hello, world!"'` | find `.rs` files with the string `Hello, world!`        |
+| GitHub Qualifier               | Search Query Example           | Description                                             |
+| ------------------------------ | ------------------------------ | ------------------------------------------------------- |
+| `in`                           | `in:path zsh`                  | matches code where `zsh` appears in the file path       |
+| `user`                         | `user:ashtom Development`      | files with the word `Development` only from `@ashtom`   |
+| `org`                          | `org:cli searcher`             | searches all code in the `cli` org for `searcher`       |
+| `repo`                         | `repo:junegunn/fzf FZF_PORT`   | searches only in the `junegunn/fzf` repo for `FZF_PORT` |
+| `path`                         | `path:.github shfmt`           | files with the word `shfmt` in the `.github` path       |
+| `language`                     | `language:js "new Proxy"`      | search for the string `new Proxy` in JavaScript files   |
+| `size` <br> (>, >=, <, and <=) | `size:<100 _gnu_generic`       | files smaller than 100 bytes with `_gnu_generic`        |
+| `filename`                     | `filename:.zshrc GOCACHE`      | search in all filenames `.zshrc` for `GOCACHE`          |
+| `extension`                    | `extension:rs "Hello, world!"` | find `.rs` files with the string `Hello, world!`        |
 
 > [!IMPORTANT]
 > The search syntax differs between the WebUI and the REST API, with the latter
@@ -42,12 +47,7 @@ gh find-code [Flags] [Search query]
 >
 > Ref: [Regex in Search API · community · Discussion #112338 · GitHub](https://github.com/orgs/community/discussions/112338)
 
----
-
-| Flags | Description                                              |
-| ----- | -------------------------------------------------------- |
-| `-l`  | limit the number of listed results (default 30, max 100) |
-| `-h`  | help                                                     |
+### Key Bindings
 
 | Key Bindings fzf | Purpose                                  | Keybind Environment Variable   |
 | ---------------- | ---------------------------------------- | ------------------------------ |
@@ -78,6 +78,25 @@ GHFC_OPEN_BROWSER_KEY="ctrl-k" gh find-code
 > man fzf | less --pattern "AVAILABLE KEYS"
 > ```
 
+### Environment Variables
+
+Table 1: Environment Variables Utilized
+
+| Variable    | Purpose                                | Default            |
+| ----------- | -------------------------------------- | ------------------ |
+| `BAT_THEME` | Preview theme for syntax highlighting. | `Monokai Extended` |
+| `EDITOR`    | Editor to open selected files.         | `vim`              |
+| `PAGER`     | Pager for file viewing.                | `less`             |
+
+Table 2: Environment Variables Defined and Utilized
+
+| Variable             | Purpose                       | Default                                                          |
+| -------------------- | ----------------------------- | ---------------------------------------------------------------- |
+| `GHFC_DEBUG_MODE`    | Enable debug mode             | `0` (Disabled)                                                   |
+| `GHFC_HISTORY_FILE`  | Custom location               | `${XDG_STATE_HOME:-$HOME/.local/state}/gh-find-code/history.txt` |
+| `GHFC_HISTORY_LIMIT` | Max number of stored commands | `500`                                                            |
+| `GHFC_*_KEY`         | Customize keybinds            | see 'Key Bindings' table                                         |
+
 ---
 
 ## 💻 Requirements and Installation
@@ -90,7 +109,8 @@ GHFC_OPEN_BROWSER_KEY="ctrl-k" gh find-code
   interaction with listed data
 - [GitHub command line tool (gh)](https://github.com/cli/cli#installation) - get
   the data from Github
-- [GNU grep](https://www.gnu.org/software/grep/) - searches through text using regular expressions
+- [GNU grep](https://www.gnu.org/software/grep) - searches through text using
+  regular expressions
 - [Python](https://www.python.org) - used to parse and open custom URLs on
   different operating systems
 
@@ -112,26 +132,6 @@ apk add util-linux bash bat curl fzf github-cli grep python3
 gh ext install LangLangBart/gh-find-code
 gh find-code'
 ```
-
----
-
-## 🌐 Environment Variables
-
-### Table 1: Environment Variables Utilized
-
-| Variable    | Purpose                                | Default            |
-| ----------- | -------------------------------------- | ------------------ |
-| `BAT_THEME` | Preview theme for syntax highlighting. | `Monokai Extended` |
-| `EDITOR`    | Editor to open selected files.         | `vim`              |
-| `PAGER`     | Pager for file viewing.                | `less`             |
-
-### Table 2: Environment Variables Defined and Utilized
-
-| Variable             | Purpose                       | Default                                                          |
-| -------------------- | ----------------------------- | ---------------------------------------------------------------- |
-| `GHFC_DEBUG_MODE`    | Enable debug mode             | `0` (Disabled)                                                   |
-| `GHFC_HISTORY_FILE`  | Custom location               | `${XDG_STATE_HOME:-$HOME/.local/state}/gh-find-code/history.txt` |
-| `GHFC_HISTORY_LIMIT` | Max number of stored commands | `500`                                                            |
 
 ---
 
@@ -188,7 +188,6 @@ export FZF_DEFAULT_OPTS="
 - See `man fzf` for `AVAILABLE KEYS` or
   [junegunn/fzf](https://github.com/junegunn/fzf#environment-variables) for more
   details.
-- **NOTE:** [How to use ALT commands in a terminal on macOS?](https://superuser.com/questions/496090/how-to-use-alt-commands-in-a-terminal-on-os-x)
 
 ### History
 
@@ -276,6 +275,6 @@ pre-commit install --hook-type commit-msg --hook-type pre-commit
 ## ⭐ Noteworthy Projects
 
 - [Official GitHub Search](https://github.com/search?type=code)
-- [grep.app | code search](https://grep.app/)
+- [grep.app | code search](https://grep.app)
 - [k1LoW/gh-grep](https://github.com/k1LoW/gh-grep)
 - [johnlindquist/ghx](https://github.com/johnlindquist/ghx)

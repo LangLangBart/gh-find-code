@@ -7,18 +7,18 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
   - repo: https://github.com/adhtruong/mirrors-typos
-    rev: v1.36.2
+    rev: v1.45.1
     hooks:
       - id: typos
         args: [--format, brief, --write-changes, --force-exclude]
   - repo: https://github.com/tcort/markdown-link-check
-    rev: v3.13.7
+    rev: v3.14.2
     hooks:
       - id: markdown-link-check
         name: markdown link check
-        args: [--quiet]
+        args: [--quiet, --alive, '200,429']
   - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.45.0
+    rev: v0.48.0
     hooks:
       - id: markdownlint
         # Disable line-length/no-inline-html
@@ -29,16 +29,16 @@ repos:
       - id: shellcheck
         args: [--external-source, --norc]
   - repo: https://github.com/scop/pre-commit-shfmt
-    rev: v3.12.0-2
+    rev: v3.13.1-1
     hooks:
       - id: shfmt
         args: [--simplify, --indent, '0', --case-indent, --write]
   - repo: https://github.com/lyz-code/yamlfix
-    rev: 1.18.0
+    rev: 1.19.1
     hooks:
       - id: yamlfix
   - repo: https://github.com/adhtruong/mirrors-typos
-    rev: v1.36.2
+    rev: v1.45.1
     hooks:
       - id: typos
         name: detect typos in commit message
@@ -52,7 +52,7 @@ repos:
         args: [--ignore, body-is-missing, --msg-filename]
         stages: [commit-msg]
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.9.1
+    rev: v4.13.10
     hooks:
       - id: commitizen
         name: check commit message structure
