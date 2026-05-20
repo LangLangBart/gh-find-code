@@ -8,17 +8,12 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Spell Check
-        # https://github.com/crate-ci/typos
-        uses: crate-ci/typos@master
-      - name: Shell and shfmt Check
-        # https://github.com/luizm/action-sh-checker
-        uses: luizm/action-sh-checker@master
+      - uses: actions/checkout@v6
+      - uses: crate-ci/typos@master
+      - uses: luizm/action-sh-checker@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SHELLCHECK_OPTS: --external-sources --norc
-          SHFMT_OPTS: --simplify --indent 0 --case-indent
+          SHFMT_OPTS: --simplify --indent 2 --case-indent
         with:
           sh_checker_comment: true
