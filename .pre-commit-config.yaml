@@ -23,6 +23,11 @@ repos:
       - id: markdownlint
         # Disable line-length/no-inline-html
         args: [--disable=MD013, --disable=MD033, --fix]
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.6
+    hooks:
+      - id: remove-tabs
+        args: [--whitespaces-count, '2']
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.11.0.1
     hooks:
