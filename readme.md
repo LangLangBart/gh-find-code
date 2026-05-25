@@ -265,7 +265,7 @@ command gh api search/code --method GET --cache 1h --field per_page=1 \
 
 ```sh
 # install the git hook scripts
-pre-commit install --hook-type commit-msg --hook-type pre-commit
+pre-commit install
 # pre-commit installed at .git/hooks/commit-msg
 # pre-commit installed at .git/hooks/pre-commit
 ```
