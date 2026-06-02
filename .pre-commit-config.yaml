@@ -8,7 +8,7 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
   - repo: https://github.com/adhtruong/mirrors-typos
-    rev: v1.46.3
+    rev: v1.47.0
     hooks:
       - id: typos
         args: [--format, brief, --write-changes, --force-exclude]
@@ -44,12 +44,18 @@ repos:
     hooks:
       - id: yamlfix
   - repo: https://github.com/adhtruong/mirrors-typos
-    rev: v1.46.3
+    rev: v1.47.0
     hooks:
       - id: typos
         name: detect typos in commit message
         args: [--format, brief]
         stages: [commit-msg]
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+        additional_dependencies:
+          - github.com/wasilibs/go-shellcheck/cmd/shellcheck@latest
   - repo: https://github.com/jorisroovers/gitlint
     rev: v0.19.1
     hooks:
@@ -58,7 +64,7 @@ repos:
         args: [--ignore, body-is-missing, --msg-filename]
         stages: [commit-msg]
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.16.2
+    rev: v4.16.3
     hooks:
       - id: commitizen
         name: check commit message structure
