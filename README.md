@@ -209,51 +209,6 @@ GHFC_HISTORY_LIMIT="1000" gh find-code
 
 ---
 
-## 🤔 Pitfall
-
-### Incorrect Line Numbers
-
-The API may return irrelevant `text` matches, which can lead to incorrect line numbers in the entire
-document.
-
-I occasionally encounter this issue in `readme.md` files when the fragment contains Asian characters
-prior to the desired search keyword. For example, when searching for `commander.js` in the
-`nieweidong/fetool` repository, the API may return text matches that are all 12 characters long, but
-there seems to be a bug in the GitHub code as it does not correctly count when the search keyword
-appears in the fragment. Instead of matching `commander.js`, it returns `er](https://`.
-
-- Ref: [GitHub Docs - Text Match Metadata](https://docs.github.com/en/rest/search/search#text-match-metadata)
-
-```sh
-command gh api search/code --method GET --cache 1h --field per_page=1 \
-  --header 'Accept: application/vnd.github.text-match+json' \
-  --raw-field 'q=repo:nieweidong/fetool commander.js' \
-  --jq '.items[].text_matches[].matches | first | {text}'
-```
-
-```json
-{
-  "text": "er](https://"
-}
-```
-
-Here is an example of a proper `text` response from the search API:
-
-```sh
-command gh api search/code --method GET --cache 1h --field per_page=1 \
-  --header 'Accept: application/vnd.github.text-match+json' \
-  --raw-field 'q=repo:calvinmetcalf/ltcdr commander.js' \
-  --jq '.items[].text_matches[].matches | first | {text}'
-```
-
-```json
-{
-  "text": "commander.js"
-}
-```
-
----
-
 ## 💪 Contributing
 
 > [!NOTE]

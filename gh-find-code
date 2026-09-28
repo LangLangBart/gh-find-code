@@ -759,11 +759,10 @@ EOF
           grep_args=("--color=never" "--line-number" "--text")
           if [[ -n $multiline_grep_executable ]] &&
             command grep --quiet --max-count=1 --fixed-strings '␤' <<<"$patterns"; then
-            # The API sometimes returns a newline character as part of a pattern. The
+            # The API can return a newline character as part of a pattern. The
             # character is replaced with '␤' inside the jq query. If such a pattern
-            # contains '␤', replace it with '\n' and try using a tool that supports
-            # multiline, as this may be a bug in the API. These scenarios occur more
-            # frequently when the surrounding text contains many non-ASCII characters.
+            # contains '␤', replace it with '\n' and use a tool that supports
+            # multiline.
 
             # TODO: Read up on how the GitHub Search API works and provide a better
             # explanation of why some patterns contain newline characters.
