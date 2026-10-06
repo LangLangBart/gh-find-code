@@ -142,14 +142,18 @@ gh_user_limit=${gh_user_limit:-$gh_default_limit}
 gh_accept_json="Accept: application/vnd.github+json"
 gh_accept_raw="Accept: application/vnd.github.raw"
 gh_accept_text_match="Accept: application/vnd.github.text-match+json"
+# https://docs.github.com/en/rest/about-the-rest-api/api-versions#supported-api-versions
 gh_rest_api_version="X-GitHub-Api-Version:2022-11-28"
 
 # This version fixed a bug where the item list didn't always update on the latest query version.
 # https://github.com/junegunn/fzf/releases/tag/v0.56.1
 min_fzf_version="0.56.1"
-# A bug with 'gh-browse' with relative paths was fixed
-# https://github.com/cli/cli/issues/7674
-min_gh_version="2.37.0"
+# '--allow-escape-sequences' for 'gh api' requires 2.97.0
+# https://github.com/cli/cli/security/advisories/GHSA-3m3g-3wcr-px46
+min_gh_version="2.97.0"
+# '--strip-ansi' requires 0.25.0
+# https://github.com/sharkdp/bat/releases/tag/v0.25.0
+min_bat_version="0.25.0"
 # Requires 'urllib.parse'
 # https://docs.python.org/3/library/urllib.parse.html
 min_python_version="3.0.0"
@@ -264,6 +268,7 @@ validate_environment() {
       die "'$value' was not found."
     fi
   done
+  check_version "$bat_executable" "$min_bat_version"
   check_version fzf "$min_fzf_version"
   check_version gh "$min_gh_version"
 
@@ -648,6 +653,7 @@ EOF
           # Run gh api commands with lower priority using nice
           # https://pubs.opengroup.org/onlinepubs/9699919799.2016edition/basedefs/V1_chap03.html#tag_03_244
           if command nice -n 20 gh api "repos/${sanitized_owner_repo_name}/contents/${sanitized_file_path}" \
+            --allow-escape-sequences \
             --cache "$gh_default_cache_time" \
             --header "$gh_accept_raw" \
             --header "$gh_rest_api_version" \
@@ -655,6 +661,7 @@ EOF
             2>"$store_gh_api_error"; then
             :
           elif command nice -n 20 gh api "https://raw.githubusercontent.com/${sanitized_owner_repo_name}/HEAD/${sanitized_file_path}" \
+            --allow-escape-sequences \
             --cache "$gh_default_cache_time" \
             --header "$gh_accept_raw" \
             --header "$gh_rest_api_version" \
@@ -875,6 +882,7 @@ view_contents() {
   # occasionally navigate to the incorrect line. The '--theme' option is not required
   # due to the 'BAT_THEME' set at the beginning.
   bat_args=(
+    "--strip-ansi=always"
     "--wrap=never"
     "--style=numbers,header-filename,grid"
     "--color=always"
